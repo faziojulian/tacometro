@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tacómetro</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #1a1a2e;
+      font-family: 'Segoe UI', sans-serif;
+      color: #eee;
+      gap: 32px;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #a0a8c8;
+    }
+
+    #gauge-container {
+      background: #16213e;
+      border-radius: 24px;
+      padding: 40px 48px 28px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    label {
+      font-size: 0.9rem;
+      color: #a0a8c8;
+    }
+
+    input[type="number"] {
+      width: 90px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1.5px solid #334;
+      background: #0f3460;
+      color: #eee;
+      font-size: 1rem;
+      text-align: center;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="number"]:focus {
+      border-color: #e94560;
+    }
+
+    button {
+      padding: 9px 20px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    button:active { transform: scale(0.97); }
+
+    #btn-set {
+      background: #e94560;
+      color: #fff;
+    }
+    #btn-set:hover { background: #c73652; }
+
+    #btn-download {
+      background: #0f3460;
+      color: #a0d8ef;
+      border: 1.5px solid #0f5485;
+    }
+    #btn-download:hover { background: #0f4070; }
+
+    .hint {
+      font-size: 0.78rem;
+      color: #556;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Tacómetro</h1>
+
+<div id="gauge-container">
+  <canvas id="gauge" width="320" height="200"></canvas>
+
+  <div class="controls">
+    <label for="val-input">Valor (0 – 1):</label>
+    <input id="val-input" type="number" min="0" max="1" step="0.01" value="0" />
+    <button id="btn-set">Actualizar</button>
+  </div>
+
+  <span class="hint">Introduce un número entre 0 y 1 (ej. 0.6 = 60 %)</span>
+
+  <button id="btn-download">⬇ Descargar imagen</button>
+</div>
+
+<script>
+  const canvas = document.getElementById('gauge');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+
+  const CX = W / 2;
+  const CY = H - 30;       // center of arc near bottom
+  const R  = 150;           // outer radius
+  const START_ANGLE = Math.PI;          // 180° (left)
+  const END_ANGLE   = 0;                // 0°   (right)
+
+  // Color stops for the arc: green → yellow → red
+  const COLOR_ZONES = [
+    { from: 0.00, to: 0.50, color: '#2ecc71' },
+    { from: 0.50, to: 0.75, color: '#f39c12' },
+    { from: 0.75, to: 1.00, color: '#e74c3c' },
+  ];
+
+  function valueToAngle(v) {
+    // 0 → π (left), 1 → 0 (right)  — arc goes counter-clockwise in canvas terms
+    return Math.PI - v * Math.PI;
+  }
+
+  function drawGauge(value) {
+    value = Math.max(0, Math.min(1, value));
+    ctx.clearRect(0, 0, W, H);
+
+    // --- background arc (dark track) ---
+    ctx.beginPath();
+    ctx.arc(CX, CY, R, Math.PI, 0, false);
+    ctx.lineWidth = 28;
+    ctx.strokeStyle = '#1e2a3a';
+    ctx.stroke();
+
+    // --- colored zone arcs ---
+    COLOR_ZONES.forEach(zone => {
+      const a1 = Math.PI - zone.from * Math.PI;
+      const a2 = Math.PI - zone.to   * Math.PI;
+      ctx.beginPath();
+      ctx.arc(CX, CY, R, a1, a2, true);   // true = counter-clockwise
+      ctx.lineWidth = 28;
+      ctx.strokeStyle = zone.color;
+      ctx.stroke();
+    });
+
+    // --- tick marks ---
+    for (let i = 0; i <= 10; i++) {
+      const t     = i / 10;
+      const angle = valueToAngle(t);
+      const isMajor = i % 2 === 0;
+      const r1 = R - 36;
+      const r2 = R - (isMajor ? 52 : 44);
+
+      const x1 = CX + Math.cos(angle) * r1;
+      const y1 = CY - Math.sin(angle) * r1;
+      const x2 = CX + Math.cos(angle) * r2;
+      const y2 = CY - Math.sin(angle) * r2;
+
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.lineWidth = isMajor ? 2.5 : 1.5;
+      ctx.strokeStyle = '#8899aa';
+      ctx.stroke();
+
+      // labels on major ticks
+      if (isMajor) {
+        const lr = R - 68;
+        const lx = CX + Math.cos(angle) * lr;
+        const ly = CY - Math.sin(angle) * lr;
+        ctx.fillStyle = '#8899aa';
+        ctx.font = '11px Segoe UI, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText((t * 100).toFixed(0) + '%', lx, ly);
+      }
+    }
+
+    // --- needle ---
+    const needleAngle = valueToAngle(value);
+    const needleLength = R - 20;
+    const nx = CX + Math.cos(needleAngle) * needleLength;
+    const ny = CY - Math.sin(needleAngle) * needleLength;
+
+    // needle shadow
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur  = 6;
+
+    ctx.beginPath();
+    ctx.moveTo(CX, CY);
+    ctx.lineTo(nx, ny);
+    ctx.lineWidth = 3.5;
+    ctx.strokeStyle = '#fff';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+
+    // needle pivot circle
+    ctx.beginPath();
+    ctx.arc(CX, CY, 9, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(CX, CY, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#e94560';
+    ctx.fill();
+
+    // --- center value label ---
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 22px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText((value * 100).toFixed(0) + '%', CX, CY - R * 0.30);
+  }
+
+  // Initial draw
+  drawGauge(0);
+
+  // Update button
+  document.getElementById('btn-set').addEventListener('click', () => {
+    const v = parseFloat(document.getElementById('val-input').value);
+    if (!isNaN(v)) drawGauge(v);
+  });
+
+  // Also update on Enter key
+  document.getElementById('val-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('btn-set').click();
+  });
+
+  // Download button
+  document.getElementById('btn-download').addEventListener('click', () => {
+    // Draw onto a new canvas with the background so the PNG is not transparent
+    const offscreen = document.createElement('canvas');
+    offscreen.width  = canvas.width;
+    offscreen.height = canvas.height;
+    const oc = offscreen.getContext('2d');
+    oc.fillStyle = '#16213e';
+    oc.fillRect(0, 0, offscreen.width, offscreen.height);
+    oc.drawImage(canvas, 0, 0);
+
+    const link = document.createElement('a');
+    link.download = 'tacometro.png';
+    link.href = offscreen.toDataURL('image/png');
+    link.click();
+  });
+</script>
+</body>
+</html>
