@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>mzML → XML MicrobeNet</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    min-height: 100vh;
+    background: #1a1a2e;
+    font-family: 'Segoe UI', sans-serif;
+    color: #eee;
+    padding: 32px 16px 80px;
+  }
+
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  h1 {
+    font-size: 1.4rem;
+    letter-spacing: 0.06em;
+    color: #eee;
+  }
+
+  h1 small {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    color: #a0a8c8;
+    margin-top: 4px;
+  }
+
+  a.back {
+    color: #a0d8ef;
+    font-size: 0.8rem;
+    text-decoration: none;
+  }
+  a.back:hover { text-decoration: underline; }
+
+  .panel {
+    background: #16213e;
+    border-radius: 16px;
+    padding: 20px 22px;
+    box-shadow: 0 6px 30px rgba(0,0,0,0.4);
+  }
+
+  .warning {
+    background: #3a2a12;
+    border: 1.5px solid #c78a1f;
+    color: #ffd98e;
+    border-radius: 12px;
+    padding: 16px 18px;
+    font-size: 0.85rem;
+    line-height: 1.55;
+  }
+  .warning b { color: #ffe6ad; }
+  .warning summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #ffe6ad;
+    margin-bottom: 6px;
+  }
+  .warning ul { margin: 8px 0 0 18px; }
+
+  #dropzone {
+    border: 2px dashed #334a6b;
+    border-radius: 14px;
+    padding: 36px 20px;
+    text-align: center;
+    color: #a0a8c8;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  #dropzone.drag { border-color: #e94560; background: #1c2743; }
+  #dropzone strong { color: #e0e6f5; }
+  #file-input { display: none; }
+
+  .opts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 14px;
+    align-items: end;
+  }
+  .opts label {
+    display: block;
+    font-size: 0.72rem;
+    color: #a0a8c8;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .opts input {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1.5px solid #334a6b;
+    background: #0f3460;
+    color: #eee;
+    font-size: 0.9rem;
+    outline: none;
+  }
+  .opts input:focus { border-color: #e94560; }
+
+  button {
+    padding: 9px 18px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    transition: background .15s, transform .1s;
+    white-space: nowrap;
+  }
+  button:active { transform: scale(0.97); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-primary { background: #e94560; color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: #c73652; }
+
+  .btn-secondary { background: #0f3460; color: #a0d8ef; border: 1.5px solid #0f5485; }
+  .btn-secondary:hover:not(:disabled) { background: #0f4070; }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+  #samples { display: flex; flex-direction: column; gap: 16px; }
+
+  .sample-card {
+    background: #131c33;
+    border: 1px solid #263353;
+    border-radius: 14px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .sample-card.error { border-color: #7a2f3a; background: #241521; }
+
+  .sample-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .sample-head .file-name { font-size: 0.78rem; color: #7d8bb0; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge {
+    font-size: 0.68rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #263353;
+    color: #a0d8ef;
+    letter-spacing: 0.03em;
+  }
+  .badge.warn { background: #4a3418; color: #ffcf80; }
+
+  .fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+  }
+  .fields label {
+    display: block;
+    font-size: 0.7rem;
+    color: #7d8bb0;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .fields input {
+    width: 100%;
+    padding: 7px 9px;
+    border-radius: 7px;
+    border: 1.5px solid #2c3a5c;
+    background: #0f3460;
+    color: #eee;
+    font-size: 0.85rem;
+    outline: none;
+  }
+  .fields input:focus { border-color: #e94560; }
+
+  canvas.spectrum {
+    width: 100%;
+    height: 140px;
+    background: #0f1730;
+    border-radius: 8px;
+    display: block;
+  }
+
+  .peak-table-wrap {
+    max-height: 180px;
+    overflow-y: auto;
+    border: 1px solid #263353;
+    border-radius: 8px;
+  }
+  table.peaks {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+  }
+  table.peaks th, table.peaks td {
+    padding: 5px 10px;
+    text-align: right;
+    border-bottom: 1px solid #1e2846;
+  }
+  table.peaks th { color: #7d8bb0; position: sticky; top: 0; background: #16213e; text-align: right; }
+  table.peaks td:first-child, table.peaks th:first-child { text-align: left; }
+
+  .meta-line { font-size: 0.75rem; color: #7d8bb0; }
+
+  .empty-state {
+    color: #556;
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 12px;
+  }
+
+  .hint { font-size: 0.72rem; color: #556; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div>
+    <a class="back" href="tacometro.html">← Tacómetro</a>
+    <h1>mzML → XML MicrobeNet
+      <small>Convierte corridas de VITEK MS PRIME (.mzML) en una lista de picos y un XML para importar en MicrobeNet</small>
+    </h1>
+  </div>
+
+  <details class="warning" open>
+    <summary>⚠ Leer antes de usar: el esquema XML es un borrador sin verificar</summary>
+    <div>
+      MicrobeNet no define un formato propio: espera el mismo XML que exporta el software
+      <b>Bruker MALDI Biotyper</b> (carpeta <code>HT-Out</code>). Como el VITEK&nbsp;MS&nbsp;PRIME es de
+      bioMérieux, esta página "traduce" el .mzML a un XML equivalente, pero <b>no pude confirmar el
+      esquema exacto que usa Bruker/MicrobeNet</b>: el sitio <code>microbenet.cdc.gov</code> está bloqueado
+      por la política de red de este entorno y no se contó con un archivo .xml real ya aceptado por
+      MicrobeNet para calcarlo.
+      <ul>
+        <li>La extracción de picos (m/z + intensidad) desde el .mzML sí es confiable: se basa en el
+          estándar abierto mzML (HUPO-PSI), no en una suposición.</li>
+        <li>El <b>XML generado es una plantilla editable</b> (función <code>buildDraftXml</code> en el
+          código de esta página) marcada como borrador. Antes de subirlo a MicrobeNet, comparalo campo a
+          campo contra un .xml real aceptado (pedilo a soporte del CDC/bioMérieux o a un colega con
+          Biotyper) y ajustá los nombres de etiquetas si hace falta.</li>
+        <li>Mientras tanto, usá el <b>CSV de picos</b> como referencia confiable de lo que se extrajo del
+          archivo.</li>
+      </ul>
+    </div>
+  </details>
+
+  <div class="panel">
+    <div id="dropzone">
+      <div><strong>Arrastrá tus archivos .mzML acá</strong> o hacé clic para elegirlos</div>
+      <div class="hint">Se acepta más de un archivo a la vez (por lote) y .mzML comprimido en .gz</div>
+      <input id="file-input" type="file" accept=".mzml,.mzML,.mzml.gz,.gz" multiple />
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="justify-content: space-between; margin-bottom: 14px;">
+      <strong style="font-size:0.85rem; color:#a0a8c8;">Ajustes de detección de picos</strong>
+      <button class="btn-secondary" id="btn-reprocess">Reprocesar muestras cargadas</button>
+    </div>
+    <div class="opts">
+      <div>
+        <label for="opt-min-mz">m/z mínimo</label>
+        <input type="number" id="opt-min-mz" value="2000" min="0" step="1" />
+      </div>
+      <div>
+        <label for="opt-max-mz">m/z máximo</label>
+        <input type="number" id="opt-max-mz" value="20000" min="0" step="1" />
+      </div>
+      <div>
+        <label for="opt-noise">Umbral de ruido (% del pico máximo)</label>
+        <input type="number" id="opt-noise" value="1" min="0" max="100" step="0.1" />
+      </div>
+      <div>
+        <label for="opt-max-peaks">Picos máximos por muestra</label>
+        <input type="number" id="opt-max-peaks" value="100" min="1" max="1000" step="1" />
+      </div>
+    </div>
+    <div class="hint" style="margin-top:10px;">
+      Si el .mzML ya trae el espectro centroidal (picos discretos, tal como lo entrega VITEK MS PRIME
+      habitualmente), el umbral de ruido y la detección de picos por perfil no se aplican: se usan los
+      picos tal cual vienen, filtrados por rango de m/z e intensidad.
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="justify-content: space-between;">
+      <strong style="font-size:0.85rem; color:#a0a8c8;">Muestras procesadas</strong>
+      <div class="row">
+        <button class="btn-secondary" id="btn-clear">Limpiar todo</button>
+        <button class="btn-primary" id="btn-zip" disabled>⬇ Descargar todo (.zip)</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="samples"></div>
+  <div class="empty-state" id="empty-state">Todavía no se cargó ningún archivo.</div>
+
+</div>
+
+<script src="vendor/fflate.umd.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ---------------------------------------------------------------------
+  // Estado global
+  // ---------------------------------------------------------------------
+  const state = { samples: [] }; // cada elemento: ver processFile()
+  let sampleSeq = 0;
+
+  function getOpts() {
+    return {
+      minMz: parseFloat(document.getElementById('opt-min-mz').value) || 0,
+      maxMz: parseFloat(document.getElementById('opt-max-mz').value) || Infinity,
+      noisePct: parseFloat(document.getElementById('opt-noise').value) || 0,
+      maxPeaks: parseInt(document.getElementById('opt-max-peaks').value, 10) || 100,
+    };
+  }
+
+  // ---------------------------------------------------------------------
+  // Utilidades binarias (base64 / zlib / gzip) - estándar mzML (HUPO-PSI)
+  // ---------------------------------------------------------------------
+  function base64ToUint8Array(b64) {
+    const clean = b64.replace(/\s+/g, '');
+    const binStr = atob(clean);
+    const len = binStr.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) bytes[i] = binStr.charCodeAt(i);
+    return bytes;
+  }
+
+  function cvOrName(paramList, accession, nameFragment) {
+    return paramList.some(p =>
+      p.getAttribute('accession') === accession ||
+      (p.getAttribute('name') || '').toLowerCase().includes(nameFragment)
+    );
+  }
+
+  function decodeBinaryDataArray(binaryDataArrayEl) {
+    const cvParams = Array.from(binaryDataArrayEl.getElementsByTagName('cvParam'));
+    const isZlib = cvOrName(cvParams, 'MS:1000574', 'zlib');
+    const is64 = cvOrName(cvParams, 'MS:1000523', '64-bit');
+    const isMz = cvOrName(cvParams, 'MS:1000514', 'm/z array');
+    const isIntensity = cvOrName(cvParams, 'MS:1000515', 'intensity array');
+
+    const binaryEl = binaryDataArrayEl.getElementsByTagName('binary')[0];
+    const b64 = binaryEl ? (binaryEl.textContent || '').trim() : '';
+    const type = isMz ? 'mz' : (isIntensity ? 'intensity' : 'unknown');
+    if (!b64) return { type, values: new Float64Array(0) };
+
+    let bytes = base64ToUint8Array(b64);
+    if (isZlib) bytes = fflate.unzlibSync(bytes);
+
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const bytesPerVal = is64 ? 8 : 4;
+    const count = Math.floor(bytes.byteLength / bytesPerVal);
+    const values = new Float64Array(count);
+    for (let i = 0; i < count; i++) {
+      values[i] = is64 ? dv.getFloat64(i * 8, true) : dv.getFloat32(i * 4, true);
+    }
+    return { type, values };
+  }
+
+  // ---------------------------------------------------------------------
+  // Parseo de mzML
+  // ---------------------------------------------------------------------
+  function parseGlobalMetadata(root) {
+    const runEl = root.getElementsByTagName('run')[0];
+    const startTimeStamp = runEl ? runEl.getAttribute('startTimeStamp') : null;
+
+    const sourceFileEl = root.getElementsByTagName('sourceFile')[0];
+    const sourceFileName = sourceFileEl
+      ? (sourceFileEl.getAttribute('name') || sourceFileEl.getAttribute('id'))
+      : null;
+
+    const instrumentConfig = root.getElementsByTagName('instrumentConfiguration')[0];
+    let instrumentName = null;
+    if (instrumentConfig) {
+      const cvParams = Array.from(instrumentConfig.getElementsByTagName('cvParam'));
+      const names = cvParams.map(p => p.getAttribute('name')).filter(Boolean);
+      if (names.length) instrumentName = names.join(' / ');
+    }
+
+    return { startTimeStamp, sourceFileName, instrumentName };
+  }
+
+  function parseSpectrum(spectrumEl) {
+    const id = spectrumEl.getAttribute('id') || '';
+    const index = spectrumEl.getAttribute('index');
+
+    const directCvParams = Array.from(spectrumEl.children).filter(c => c.tagName === 'cvParam');
+    const isCentroid = directCvParams.some(p => p.getAttribute('accession') === 'MS:1000127');
+    const isProfile = directCvParams.some(p => p.getAttribute('accession') === 'MS:1000128');
+    const msLevelParam = directCvParams.find(p => p.getAttribute('accession') === 'MS:1000511');
+    const msLevel = msLevelParam ? msLevelParam.getAttribute('value') : null;
+
+    let spotId = null;
+    const scanEls = spectrumEl.getElementsByTagName('scan');
+    for (const scan of scanEls) {
+      const params = [
+        ...Array.from(scan.getElementsByTagName('cvParam')),
+        ...Array.from(scan.getElementsByTagName('userParam')),
+      ];
+      for (const p of params) {
+        const name = (p.getAttribute('name') || '').toLowerCase();
+        if (name.includes('spot') || name.includes('target') || name.includes('sample') || name.includes('well')) {
+          spotId = p.getAttribute('value') || spotId;
+        }
+      }
+    }
+
+    const binaryArrays = Array.from(spectrumEl.getElementsByTagName('binaryDataArray'));
+    let mz = null, intensity = null;
+    for (const arr of binaryArrays) {
+      const decoded = decodeBinaryDataArray(arr);
+      if (decoded.type === 'mz') mz = decoded.values;
+      else if (decoded.type === 'intensity') intensity = decoded.values;
+    }
+
+    return { id, index, isCentroid, isProfile, msLevel, spotId, mz, intensity };
+  }
+
+  async function readAsXmlText(file) {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    let xmlBytes = buf;
+    if (buf.length > 2 && buf[0] === 0x1f && buf[1] === 0x8b) {
+      xmlBytes = fflate.gunzipSync(buf);
+    }
+    return new TextDecoder('utf-8').decode(xmlBytes);
+  }
+
+  async function processFile(file) {
+    const text = await readAsXmlText(file);
+    const doc = new DOMParser().parseFromString(text, 'application/xml');
+    const parserError = doc.getElementsByTagName('parsererror')[0];
+    if (parserError) {
+      throw new Error('El archivo no es XML válido: ' + parserError.textContent.trim().slice(0, 200));
+    }
+
+    let root = doc.documentElement;
+    if (root.tagName === 'indexedmzML') {
+      const inner = root.getElementsByTagName('mzML')[0];
+      if (inner) root = inner;
+    }
+    if (root.tagName !== 'mzML') {
+      throw new Error('El elemento raíz es <' + root.tagName + '>, se esperaba <mzML> o <indexedmzML>.');
+    }
+
+    const globalMeta = parseGlobalMetadata(root);
+    const spectra = Array.from(root.getElementsByTagName('spectrum'));
+    if (spectra.length === 0) {
+      throw new Error('No se encontraron elementos <spectrum> en el archivo.');
+    }
+
+    const baseName = file.name.replace(/\.mzml(\.gz)?$/i, '');
+
+    return spectra.map((specEl, i) => {
+      const parsed = parseSpectrum(specEl);
+      const warnings = [];
+      if (!parsed.mz || !parsed.intensity) {
+        warnings.push('Faltan arrays de m/z o de intensidad en este espectro.');
+      } else if (parsed.mz.length !== parsed.intensity.length) {
+        warnings.push('Los arrays de m/z e intensidad tienen longitudes distintas.');
+      }
+      if (!parsed.isCentroid && !parsed.isProfile) {
+        warnings.push('El espectro no indica si es centroidal o de perfil; se trató como perfil (detección de picos).');
+      }
+
+      return {
+        localId: 'm' + (sampleSeq++),
+        sourceFileName: file.name,
+        spectrumId: parsed.id,
+        spectrumIndex: parsed.index,
+        sampleId: parsed.spotId || parsed.id || (baseName + (spectra.length > 1 ? '_' + i : '')),
+        organism: '',
+        msLevel: parsed.msLevel,
+        isCentroid: parsed.isCentroid,
+        isProfile: parsed.isProfile,
+        mz: parsed.mz,
+        intensity: parsed.intensity,
+        acquisitionDate: globalMeta.startTimeStamp,
+        instrument: globalMeta.instrumentName,
+        warnings,
+        peaks: [],
+      };
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Detección de picos
+  // ---------------------------------------------------------------------
+  function pickPeaksFromProfile(mz, intensity, opts) {
+    const n = mz.length;
+    let maxIntensity = 0;
+    for (let i = 0; i < n; i++) if (intensity[i] > maxIntensity) maxIntensity = intensity[i];
+    const threshold = maxIntensity * (opts.noisePct / 100);
+
+    const peaks = [];
+    for (let i = 1; i < n - 1; i++) {
+      if (mz[i] < opts.minMz || mz[i] > opts.maxMz) continue;
+      if (intensity[i] <= threshold) continue;
+      if (intensity[i] >= intensity[i - 1] && intensity[i] >= intensity[i + 1] && intensity[i] > intensity[i - 1]) {
+        peaks.push({ mz: mz[i], intensity: intensity[i] });
+      }
+    }
+    peaks.sort((a, b) => b.intensity - a.intensity);
+    return peaks.slice(0, opts.maxPeaks).sort((a, b) => a.mz - b.mz);
+  }
+
+  function peaksFromCentroid(mz, intensity, opts) {
+    const peaks = [];
+    for (let i = 0; i < mz.length; i++) {
+      if (mz[i] < opts.minMz || mz[i] > opts.maxMz) continue;
+      if (intensity[i] <= 0) continue;
+      peaks.push({ mz: mz[i], intensity: intensity[i] });
+    }
+    peaks.sort((a, b) => b.intensity - a.intensity);
+    const top = peaks.slice(0, opts.maxPeaks);
+    top.sort((a, b) => a.mz - b.mz);
+    return top;
+  }
+
+  function computePeaks(sample, opts) {
+    if (!sample.mz || !sample.intensity || sample.mz.length !== sample.intensity.length) return [];
+    if (sample.isCentroid && !sample.isProfile) return peaksFromCentroid(sample.mz, sample.intensity, opts);
+    return pickPeaksFromProfile(sample.mz, sample.intensity, opts);
+  }
+
+  // ---------------------------------------------------------------------
+  // Generación de salidas (XML borrador / CSV)
+  // ---------------------------------------------------------------------
+  function escapeXml(s) {
+    return String(s == null ? '' : s).replace(/[<>&'"]/g, c => ({
+      '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;',
+    }[c]));
+  }
+
+  // ÚNICO lugar donde vive el mapeo a XML. Marcado como borrador: ver el
+  // banner de advertencia de la página para el motivo. Ajustar nombres de
+  // etiquetas acá una vez que se cuente con un .xml real aceptado por
+  // MicrobeNet contra el cual comparar.
+  function buildDraftXml(sample) {
+    const peaksXml = sample.peaks
+      .map(p => `    <Peak mass="${p.mz.toFixed(4)}" intensity="${p.intensity.toFixed(2)}"/>`)
+      .join('\n');
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PLANTILLA PROVISORIA - esquema sin verificar contra MicrobeNet.
+  Generado por mzml-a-microbenet.html a partir de un archivo .mzML de
+  VITEK MS PRIME. Antes de importar este archivo en MicrobeNet, compararlo
+  campo a campo contra un .xml real aceptado (exportado por el software
+  Bruker MALDI Biotyper, carpeta "HT-Out") y ajustar esta plantilla si hace
+  falta.
+-->
+<MSSpectrumExport xmlns="urn:tacometro:mzml-a-microbenet:draft-v1">
+  <Isolate>
+    <SampleId>${escapeXml(sample.sampleId)}</SampleId>
+    <Organism>${escapeXml(sample.organism)}</Organism>
+    <SourceFile>${escapeXml(sample.sourceFileName)}</SourceFile>
+    <SpectrumId>${escapeXml(sample.spectrumId)}</SpectrumId>
+    <AcquisitionDate>${escapeXml(sample.acquisitionDate)}</AcquisitionDate>
+    <Instrument>${escapeXml(sample.instrument)}</Instrument>
+  </Isolate>
+  <Spectrum msLevel="${escapeXml(sample.msLevel || '1')}" peakCount="${sample.peaks.length}">
+    <PeakList>
+${peaksXml}
+    </PeakList>
+  </Spectrum>
+</MSSpectrumExport>
+`;
+  }
+
+  function buildCsv(sample) {
+    const lines = ['mz,intensity'];
+    for (const p of sample.peaks) lines.push(`${p.mz.toFixed(4)},${p.intensity.toFixed(2)}`);
+    return lines.join('\n');
+  }
+
+  function sanitizeFilename(s) {
+    return (String(s || 'muestra').replace(/[^a-zA-Z0-9_.-]+/g, '_').slice(0, 80)) || 'muestra';
+  }
+
+  function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  // ---------------------------------------------------------------------
+  // Dibujo del espectro (canvas, solo para verificación visual)
+  // ---------------------------------------------------------------------
+  function drawSpectrum(canvas, sample, opts) {
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = canvas.clientWidth || 600;
+    const cssH = canvas.clientHeight || 140;
+    canvas.width = cssW * dpr;
+    canvas.height = cssH * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const W = cssW, H = cssH;
+
+    ctx.clearRect(0, 0, W, H);
+
+    const mz = sample.mz, intensity = sample.intensity;
+    if (!mz || !intensity || mz.length === 0) {
+      ctx.fillStyle = '#556';
+      ctx.font = '12px Segoe UI, sans-serif';
+      ctx.fillText('Sin datos de espectro para graficar', 10, H / 2);
+      return;
+    }
+
+    const minMz = Math.max(opts.minMz, mz[0]);
+    const maxMz = Math.min(opts.maxMz, mz[mz.length - 1]);
+    let maxI = 0;
+    for (let i = 0; i < intensity.length; i++) {
+      if (mz[i] < minMz || mz[i] > maxMz) continue;
+      if (intensity[i] > maxI) maxI = intensity[i];
+    }
+    if (maxI <= 0) maxI = 1;
+
+    const xOf = m => ((m - minMz) / (maxMz - minMz || 1)) * W;
+    const yOf = v => H - (v / maxI) * (H - 10) - 5;
+
+    ctx.strokeStyle = '#5ec8f8';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < mz.length; i++) {
+      if (mz[i] < minMz || mz[i] > maxMz) continue;
+      const x = xOf(mz[i]), y = yOf(intensity[i]);
+      if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    ctx.fillStyle = '#e94560';
+    for (const p of sample.peaks) {
+      const x = xOf(p.mz), y = yOf(p.intensity);
+      ctx.beginPath();
+      ctx.arc(x, y, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // UI
+  // ---------------------------------------------------------------------
+  const samplesEl = document.getElementById('samples');
+  const emptyStateEl = document.getElementById('empty-state');
+  const btnZip = document.getElementById('btn-zip');
+
+  function updateEmptyState() {
+    emptyStateEl.style.display = state.samples.length ? 'none' : 'block';
+    btnZip.disabled = state.samples.length === 0;
+  }
+
+  function buildSampleCard(sample) {
+    const card = document.createElement('div');
+    card.className = 'sample-card';
+    card.dataset.id = sample.localId;
+
+    const warnBadges = sample.warnings.map(w => `<span class="badge warn">${escapeXml(w)}</span>`).join('');
+    const typeBadge = sample.isCentroid ? 'centroidal' : (sample.isProfile ? 'perfil' : 'tipo desconocido');
+
+    card.innerHTML = `
+      <div class="sample-head">
+        <div class="file-name">${escapeXml(sample.sourceFileName)} · espectro ${escapeXml(sample.spectrumIndex ?? '')} (${escapeXml(sample.spectrumId)})</div>
+        <div class="badges">
+          <span class="badge">${escapeXml(typeBadge)}</span>
+          <span class="badge">MS${escapeXml(sample.msLevel || '?')}</span>
+          <span class="badge peak-count-badge">0 picos</span>
+          ${warnBadges}
+        </div>
+      </div>
+
+      <div class="fields">
+        <div>
+          <label>ID de muestra / aislamiento</label>
+          <input type="text" class="field-sample-id" value="${escapeXml(sample.sampleId)}" />
+        </div>
+        <div>
+          <label>Organismo (opcional)</label>
+          <input type="text" class="field-organism" value="${escapeXml(sample.organism)}" placeholder="sin identificar" />
+        </div>
+      </div>
+
+      <div class="meta-line">
+        Adquirido: ${escapeXml(sample.acquisitionDate || 'sin dato')} ·
+        Instrumento: ${escapeXml(sample.instrument || 'sin dato')}
+      </div>
+
+      <canvas class="spectrum"></canvas>
+
+      <div class="peak-table-wrap">
+        <table class="peaks">
+          <thead><tr><th>#</th><th>m/z</th><th>Intensidad</th></tr></thead>
+          <tbody class="peak-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="row">
+        <button class="btn-secondary btn-dl-xml">⬇ XML (borrador)</button>
+        <button class="btn-secondary btn-dl-csv">⬇ CSV de picos</button>
+      </div>
+    `;
+
+    card.querySelector('.field-sample-id').addEventListener('input', e => {
+      sample.sampleId = e.target.value;
+    });
+    card.querySelector('.field-organism').addEventListener('input', e => {
+      sample.organism = e.target.value;
+    });
+    card.querySelector('.btn-dl-xml').addEventListener('click', () => {
+      triggerDownload(new Blob([buildDraftXml(sample)], { type: 'application/xml' }), sanitizeFilename(sample.sampleId) + '.xml');
+    });
+    card.querySelector('.btn-dl-csv').addEventListener('click', () => {
+      triggerDownload(new Blob([buildCsv(sample)], { type: 'text/csv' }), sanitizeFilename(sample.sampleId) + '_picos.csv');
+    });
+
+    sample._card = card;
+    return card;
+  }
+
+  function refreshSampleCard(sample, opts) {
+    const card = sample._card;
+    if (!card) return;
+
+    card.querySelector('.peak-count-badge').textContent = sample.peaks.length + ' picos';
+
+    const tbody = card.querySelector('.peak-tbody');
+    tbody.innerHTML = sample.peaks
+      .map((p, i) => `<tr><td>${i + 1}</td><td>${p.mz.toFixed(4)}</td><td>${p.intensity.toFixed(1)}</td></tr>`)
+      .join('');
+
+    drawSpectrum(card.querySelector('canvas.spectrum'), sample, opts);
+  }
+
+  function processAndRenderSample(sample) {
+    const opts = getOpts();
+    sample.peaks = computePeaks(sample, opts);
+    if (!sample._card) {
+      const card = buildSampleCard(sample);
+      if (sample.warnings.some(w => w.includes('Faltan arrays'))) card.classList.add('error');
+      samplesEl.appendChild(card);
+    }
+    refreshSampleCard(sample, opts);
+  }
+
+  async function handleFiles(fileList) {
+    const files = Array.from(fileList).filter(f => /\.mzml(\.gz)?$/i.test(f.name) || /\.gz$/i.test(f.name));
+    if (files.length === 0) {
+      alert('No se encontraron archivos .mzML entre los seleccionados.');
+      return;
+    }
+    for (const file of files) {
+      try {
+        const samples = await processFile(file);
+        for (const sample of samples) {
+          state.samples.push(sample);
+          processAndRenderSample(sample);
+        }
+      } catch (err) {
+        const card = document.createElement('div');
+        card.className = 'sample-card error';
+        card.innerHTML = `<div class="sample-head"><div class="file-name">${escapeXml(file.name)}</div>
+          <span class="badge warn">Error al procesar</span></div>
+          <div class="meta-line">${escapeXml(err.message)}</div>`;
+        samplesEl.appendChild(card);
+      }
+    }
+    updateEmptyState();
+  }
+
+  // Drag & drop / selector de archivos
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('file-input');
+  dropzone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => handleFiles(e.target.files));
+  ['dragenter', 'dragover'].forEach(evt =>
+    dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add('drag'); })
+  );
+  ['dragleave', 'drop'].forEach(evt =>
+    dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.remove('drag'); })
+  );
+  dropzone.addEventListener('drop', e => {
+    if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+  });
+
+  // Reprocesar con nuevos ajustes de detección de picos
+  document.getElementById('btn-reprocess').addEventListener('click', () => {
+    const opts = getOpts();
+    for (const sample of state.samples) {
+      sample.peaks = computePeaks(sample, opts);
+      refreshSampleCard(sample, opts);
+    }
+  });
+
+  // Limpiar todo
+  document.getElementById('btn-clear').addEventListener('click', () => {
+    state.samples = [];
+    samplesEl.innerHTML = '';
+    updateEmptyState();
+  });
+
+  // Descargar todo como .zip (XML + CSV por muestra)
+  btnZip.addEventListener('click', () => {
+    const files = {};
+    const used = new Set();
+    for (const sample of state.samples) {
+      let base = sanitizeFilename(sample.sampleId);
+      let candidate = base;
+      let n = 2;
+      while (used.has(candidate)) { candidate = base + '_' + n; n++; }
+      used.add(candidate);
+      files[candidate + '.xml'] = fflate.strToU8(buildDraftXml(sample));
+      files[candidate + '_picos.csv'] = fflate.strToU8(buildCsv(sample));
+    }
+    const zipped = fflate.zipSync(files);
+    triggerDownload(new Blob([zipped], { type: 'application/zip' }), 'muestras_microbenet.zip');
+  });
+
+  updateEmptyState();
+})();
+</script>
+</body>
+</html>
