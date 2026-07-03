@@ -291,6 +291,10 @@
         <label for="opt-max-peaks">Picos máximos por muestra</label>
         <input type="number" id="opt-max-peaks" value="100" min="1" max="1000" step="1" />
       </div>
+      <div>
+        <label for="opt-min-sep">Separación mínima entre picos (Da)</label>
+        <input type="number" id="opt-min-sep" value="2" min="0" step="0.1" />
+      </div>
     </div>
     <div class="hint" style="margin-top:10px;">
       Si el .mzML ya trae el espectro centroidal (picos discretos, tal como lo entrega VITEK MS PRIME
@@ -324,6 +328,7 @@
   // ---------------------------------------------------------------------
   const state = { samples: [] }; // cada elemento: ver processFile()
   let sampleSeq = 0;
+  let scanWindowAutoFilled = false;
 
   function getOpts() {
     return {
@@ -331,6 +336,7 @@
       maxMz: parseFloat(document.getElementById('opt-max-mz').value) || Infinity,
       noisePct: parseFloat(document.getElementById('opt-noise').value) || 0,
       maxPeaks: parseInt(document.getElementById('opt-max-peaks').value, 10) || 100,
+      minSeparation: parseFloat(document.getElementById('opt-min-sep').value) || 0,
     };
   }
 
@@ -381,6 +387,34 @@
   // ---------------------------------------------------------------------
   // Parseo de mzML
   // ---------------------------------------------------------------------
+  // Nombre + fabricante del instrumento a partir de los cvParam propietarios
+  // de bioMérieux (cvRef="BM") vistos en archivos reales de VITEK MS PRIME:
+  // el modelo ("VITEK MS PRIME") y el fabricante ("bioMerieux") viajan en el
+  // atributo `name` de un cvParam sin `value` (BM:1001080 / BM:1001081), y el
+  // apodo del equipo + nro de serie sí tienen `value` (BM:1001071 / MS:1000529).
+  function extractInstrumentName(instrumentConfig) {
+    if (!instrumentConfig) return null;
+    const direct = Array.from(instrumentConfig.children).filter(c => c.tagName === 'cvParam');
+    const byAcc = {};
+    direct.forEach(p => { byAcc[p.getAttribute('accession')] = p; });
+
+    const manufacturer = byAcc['BM:1001081'] ? byAcc['BM:1001081'].getAttribute('name') : null;
+    const model = byAcc['BM:1001080'] ? byAcc['BM:1001080'].getAttribute('name') : null;
+    const nickname = byAcc['BM:1001071'] ? byAcc['BM:1001071'].getAttribute('value') : null;
+    const serial = byAcc['MS:1000529'] ? byAcc['MS:1000529'].getAttribute('value') : null;
+
+    const parts = [];
+    const brand = [manufacturer, model].filter(Boolean).join(' ');
+    if (brand) parts.push(brand);
+    if (nickname) parts.push(nickname);
+    if (serial) parts.push('S/N ' + serial);
+    if (parts.length) return parts.join(' · ');
+
+    // Fallback genérico para instrumentos que no usan ese esquema BM conocido.
+    const generic = direct.filter(p => p.getAttribute('value')).map(p => `${p.getAttribute('name')}=${p.getAttribute('value')}`);
+    return generic.length ? generic.join(', ') : null;
+  }
+
   function parseGlobalMetadata(root) {
     const runEl = root.getElementsByTagName('run')[0];
     const startTimeStamp = runEl ? runEl.getAttribute('startTimeStamp') : null;
@@ -390,20 +424,42 @@
       ? (sourceFileEl.getAttribute('name') || sourceFileEl.getAttribute('id'))
       : null;
 
-    const instrumentConfig = root.getElementsByTagName('instrumentConfiguration')[0];
-    let instrumentName = null;
-    if (instrumentConfig) {
-      const cvParams = Array.from(instrumentConfig.getElementsByTagName('cvParam'));
-      const names = cvParams.map(p => p.getAttribute('name')).filter(Boolean);
-      if (names.length) instrumentName = names.join(' / ');
+    // "slide barcode": código de la lámina/portaobjetos donde se sembraron
+    // los spots (visto en fileDescription > fileContent en archivos VITEK).
+    let slideBarcode = null;
+    const fileContentEl = root.getElementsByTagName('fileContent')[0];
+    if (fileContentEl) {
+      const params = Array.from(fileContentEl.getElementsByTagName('cvParam'));
+      const p = params.find(p => (p.getAttribute('name') || '').toLowerCase().includes('slide barcode'));
+      if (p) slideBarcode = p.getAttribute('value');
     }
 
-    return { startTimeStamp, sourceFileName, instrumentName };
+    const instrumentConfig = root.getElementsByTagName('instrumentConfiguration')[0];
+    const instrumentName = extractInstrumentName(instrumentConfig);
+
+    return { startTimeStamp, sourceFileName, instrumentName, slideBarcode };
+  }
+
+  function getScanWindowBounds(spectrumEl) {
+    const scanWindow = spectrumEl.getElementsByTagName('scanWindow')[0];
+    if (!scanWindow) return null;
+    const params = Array.from(scanWindow.getElementsByTagName('cvParam'));
+    const lower = params.find(p => p.getAttribute('accession') === 'MS:1000501' || (p.getAttribute('name') || '').includes('lower limit'));
+    const upper = params.find(p => p.getAttribute('accession') === 'MS:1000500' || (p.getAttribute('name') || '').includes('upper limit'));
+    if (!lower || !upper) return null;
+    const min = parseFloat(lower.getAttribute('value'));
+    const max = parseFloat(upper.getAttribute('value'));
+    if (!isFinite(min) || !isFinite(max)) return null;
+    return { min, max };
   }
 
   function parseSpectrum(spectrumEl) {
     const id = spectrumEl.getAttribute('id') || '';
     const index = spectrumEl.getAttribute('index');
+    // VITEK MS PRIME identifica cada espectro con un atributo `spotID` en
+    // <spectrum> (ej. "I4" = posición del pocillo/spot en la lámina). Es el
+    // identificador más legible disponible, más útil que el `id` interno.
+    const spotIdAttr = spectrumEl.getAttribute('spotID');
 
     const directCvParams = Array.from(spectrumEl.children).filter(c => c.tagName === 'cvParam');
     const isCentroid = directCvParams.some(p => p.getAttribute('accession') === 'MS:1000127');
@@ -434,7 +490,9 @@
       else if (decoded.type === 'intensity') intensity = decoded.values;
     }
 
-    return { id, index, isCentroid, isProfile, msLevel, spotId, mz, intensity };
+    const scanWindow = getScanWindowBounds(spectrumEl);
+
+    return { id, index, spotIdAttr, isCentroid, isProfile, msLevel, spotId, mz, intensity, scanWindow };
   }
 
   async function readAsXmlText(file) {
@@ -483,18 +541,23 @@
         warnings.push('El espectro no indica si es centroidal o de perfil; se trató como perfil (detección de picos).');
       }
 
+      const defaultSampleId = (globalMeta.slideBarcode && parsed.spotIdAttr)
+        ? `${globalMeta.slideBarcode}_${parsed.spotIdAttr}`
+        : (parsed.spotIdAttr || parsed.spotId || parsed.id || (baseName + (spectra.length > 1 ? '_' + i : '')));
+
       return {
         localId: 'm' + (sampleSeq++),
         sourceFileName: file.name,
         spectrumId: parsed.id,
         spectrumIndex: parsed.index,
-        sampleId: parsed.spotId || parsed.id || (baseName + (spectra.length > 1 ? '_' + i : '')),
+        sampleId: defaultSampleId,
         organism: '',
         msLevel: parsed.msLevel,
         isCentroid: parsed.isCentroid,
         isProfile: parsed.isProfile,
         mz: parsed.mz,
         intensity: parsed.intensity,
+        scanWindow: parsed.scanWindow,
         acquisitionDate: globalMeta.startTimeStamp,
         instrument: globalMeta.instrumentName,
         warnings,
@@ -506,13 +569,27 @@
   // ---------------------------------------------------------------------
   // Detección de picos
   // ---------------------------------------------------------------------
+  // Descarta picos candidatos demasiado cercanos entre sí (mismo pico real
+  // partido en varios máximos locales por ruido de fondo): se queda con el
+  // de mayor intensidad dentro de cada ventana de `minSeparation` Da.
+  function enforceMinSeparation(peaks, minSeparation) {
+    if (!minSeparation || minSeparation <= 0) return peaks;
+    const sorted = [...peaks].sort((a, b) => b.intensity - a.intensity);
+    const accepted = [];
+    for (const p of sorted) {
+      if (accepted.some(a => Math.abs(a.mz - p.mz) < minSeparation)) continue;
+      accepted.push(p);
+    }
+    return accepted;
+  }
+
   function pickPeaksFromProfile(mz, intensity, opts) {
     const n = mz.length;
     let maxIntensity = 0;
     for (let i = 0; i < n; i++) if (intensity[i] > maxIntensity) maxIntensity = intensity[i];
     const threshold = maxIntensity * (opts.noisePct / 100);
 
-    const peaks = [];
+    let peaks = [];
     for (let i = 1; i < n - 1; i++) {
       if (mz[i] < opts.minMz || mz[i] > opts.maxMz) continue;
       if (intensity[i] <= threshold) continue;
@@ -520,17 +597,19 @@
         peaks.push({ mz: mz[i], intensity: intensity[i] });
       }
     }
+    peaks = enforceMinSeparation(peaks, opts.minSeparation);
     peaks.sort((a, b) => b.intensity - a.intensity);
     return peaks.slice(0, opts.maxPeaks).sort((a, b) => a.mz - b.mz);
   }
 
   function peaksFromCentroid(mz, intensity, opts) {
-    const peaks = [];
+    let peaks = [];
     for (let i = 0; i < mz.length; i++) {
       if (mz[i] < opts.minMz || mz[i] > opts.maxMz) continue;
       if (intensity[i] <= 0) continue;
       peaks.push({ mz: mz[i], intensity: intensity[i] });
     }
+    peaks = enforceMinSeparation(peaks, opts.minSeparation);
     peaks.sort((a, b) => b.intensity - a.intensity);
     const top = peaks.slice(0, opts.maxPeaks);
     top.sort((a, b) => a.mz - b.mz);
@@ -776,6 +855,14 @@ ${peaksXml}
     for (const file of files) {
       try {
         const samples = await processFile(file);
+        // Ante el primer archivo cargado, si el instrumento informa su
+        // propia ventana de escaneo (scanWindow), usarla para pre-cargar el
+        // rango de m/z en lugar del valor por defecto genérico.
+        if (!scanWindowAutoFilled && samples.length && samples[0].scanWindow) {
+          scanWindowAutoFilled = true;
+          document.getElementById('opt-min-mz').value = Math.floor(samples[0].scanWindow.min);
+          document.getElementById('opt-max-mz').value = Math.ceil(samples[0].scanWindow.max);
+        }
         for (const sample of samples) {
           state.samples.push(sample);
           processAndRenderSample(sample);
