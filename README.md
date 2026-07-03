@@ -9,19 +9,25 @@ importar en MicrobeNet (CDC), y a una lista de picos en CSV.
 
 ## `index.html` — conversor mzML → XML MicrobeNet
 
-`index.html` es la página principal (se sirve en la raíz de GitHub Pages). Convierte
-archivos `.mzML` en:
+`index.html` es la página principal (se sirve en la raíz de GitHub Pages). Convierte uno o
+varios archivos `.mzML` de VITEK MS PRIME en:
 
-- una lista de picos (m/z + intensidad), extraída y verificable con el estándar abierto mzML (HUPO-PSI);
-- un archivo `.xml` "borrador" pensado para importar en MicrobeNet (CDC).
+- una lista de picos (m/z + intensidad) por muestra, extraída y verificable con el estándar abierto mzML (HUPO-PSI), exportable en CSV;
+- un único archivo `.xml` de **proyecto** (`<MspMatchResult>`, con un `<Analyte>` por muestra) pensado para importar en MicrobeNet (CDC).
 
-**Importante:** MicrobeNet espera el XML que exporta el software Bruker MALDI Biotyper
-(carpeta `HT-Out`). No fue posible confirmar el esquema exacto de ese XML (el sitio
-`microbenet.cdc.gov` no es accesible desde este entorno y no se contó con un archivo de
-ejemplo ya aceptado), así que el XML generado es una plantilla editable que **hay que
-validar contra un archivo real** antes de usarla para importar datos. El mapeo de campos
-vive en la función `buildDraftXml` dentro del archivo, para ajustarlo fácilmente. Mientras
-tanto, el CSV de picos es la salida confiable.
+**Esquema del XML:** la estructura (`MspMatchResult` > `ProjectInfo` + `Analytes` >
+`Analyte` > `Peaklist` > `Peaks` > `Peak`, con sus atributos e intensidades normalizadas
+0–1) se tomó de un archivo `.xml` real ya aceptado por MicrobeNet, no es una suposición.
+Quedan dos puntos que sí son best-effort y conviene revisar:
+
+- el nombre de cada `Analyte` (`name`/`externId`) se reconstruye combinando campos del
+  `.mzML` según el patrón observado en ese único ejemplo; es editable por muestra
+  ("Nombre MSP") por si no generaliza a otro tipo de muestra/protocolo;
+- la versión de KB del Biotyper no viaja en el `.mzML` de VITEK, hay que completarla a
+  mano en "Datos del proyecto" si se conoce.
+
+Antes de usarlo en producción, conviene subir un lote de prueba a MicrobeNet y confirmar
+que lo acepta e identifica como se espera.
 
 Todo el procesamiento ocurre en el navegador (sin subir archivos a ningún servidor), usando
 [fflate](https://github.com/101arrowz/fflate) (vendorizado en `vendor/`) para descomprimir

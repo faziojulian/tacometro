@@ -232,24 +232,30 @@
   </div>
 
   <details class="warning" open>
-    <summary>⚠ Leer antes de usar: el esquema XML es un borrador sin verificar</summary>
+    <summary>⚠ Leer antes de usar: esquema verificado contra un ejemplo real, con salvedades</summary>
     <div>
-      MicrobeNet no define un formato propio: espera el mismo XML que exporta el software
-      <b>Bruker MALDI Biotyper</b> (carpeta <code>HT-Out</code>). Como el VITEK&nbsp;MS&nbsp;PRIME es de
-      bioMérieux, esta página "traduce" el .mzML a un XML equivalente, pero <b>no pude confirmar el
-      esquema exacto que usa Bruker/MicrobeNet</b>: el sitio <code>microbenet.cdc.gov</code> está bloqueado
-      por la política de red de este entorno y no se contó con un archivo .xml real ya aceptado por
-      MicrobeNet para calcarlo.
+      La estructura del XML (<code>MspMatchResult</code> &gt; <code>ProjectInfo</code> +
+      <code>Analytes</code> &gt; <code>Analyte</code> &gt; <code>Peaklist</code> &gt; <code>Peaks</code> &gt;
+      <code>Peak</code>, con sus atributos) se tomó de un archivo <code>.xml</code> real ya aceptado por
+      MicrobeNet, no es una suposición. Aun así quedan puntos sin confirmar del todo:
       <ul>
-        <li>La extracción de picos (m/z + intensidad) desde el .mzML sí es confiable: se basa en el
-          estándar abierto mzML (HUPO-PSI), no en una suposición.</li>
-        <li>El <b>XML generado es una plantilla editable</b> (función <code>buildDraftXml</code> en el
-          código de esta página) marcada como borrador. Antes de subirlo a MicrobeNet, comparalo campo a
-          campo contra un .xml real aceptado (pedilo a soporte del CDC/bioMérieux o a un colega con
-          Biotyper) y ajustá los nombres de etiquetas si hace falta.</li>
-        <li>Mientras tanto, usá el <b>CSV de picos</b> como referencia confiable de lo que se extrajo del
-          archivo.</li>
+        <li>El <b>nombre de cada Analyte</b> (campos <code>name</code>/<code>externId</code>) se reconstruye
+          combinando datos del .mzML según el patrón observado en ese único archivo de ejemplo
+          (instrumento, código de lámina, posición, tipo de muestra, etc.). Puede no generalizar a todos
+          los casos (otros tipos de muestra, protocolos, etc.); por eso el campo "Nombre MSP" de cada
+          muestra es editable a mano.</li>
+        <li>La <b>versión de KB</b> (base de conocimiento del Biotyper) no viaja en el .mzML de VITEK: hay
+          que completarla manualmente en "Datos del proyecto" si se conoce.</li>
+        <li>El significado exacto de <code>intensityScale</code> en <code>Peaklist</code> no se pudo
+          confirmar de forma independiente; se calcula como 1/intensidad máxima para que sea coherente con
+          los picos normalizados (0 a 1) que sí se exportan siguiendo el mismo criterio del archivo de
+          referencia.</li>
+        <li>La extracción de picos (m/z + intensidad) desde el .mzML es confiable de por sí: se basa en el
+          estándar abierto mzML (HUPO-PSI). El <b>CSV de picos</b> exporta esos valores crudos (sin
+          normalizar) como referencia adicional.</li>
       </ul>
+      Antes de usar esto en producción, subí un lote de prueba a MicrobeNet y confirmá que lo acepta e
+      identifica como se espera.
     </div>
   </details>
 
@@ -296,11 +302,50 @@
   </div>
 
   <div class="panel">
+    <strong style="font-size:0.85rem; color:#a0a8c8;">Datos del proyecto (para el XML de MicrobeNet)</strong>
+    <div class="opts" style="margin-top:14px;">
+      <div>
+        <label for="proj-name">Nombre del proyecto</label>
+        <input type="text" id="proj-name" placeholder="Corrida ..." />
+      </div>
+      <div>
+        <label for="proj-instrument">ID de instrumento</label>
+        <input type="text" id="proj-instrument" placeholder="VITEK MS PRIME ES00000" />
+      </div>
+      <div>
+        <label for="proj-external-id">ID de destino externo</label>
+        <input type="text" id="proj-external-id" placeholder="opcional" />
+      </div>
+      <div>
+        <label for="proj-type">Tipo de proyecto</label>
+        <input type="text" id="proj-type" value="Espectros IVD" />
+      </div>
+      <div>
+        <label for="proj-creator">Creador</label>
+        <input type="text" id="proj-creator" placeholder="usuario@laboratorio" />
+      </div>
+      <div>
+        <label for="proj-kb">Versión de KB (Biotyper)</label>
+        <input type="text" id="proj-kb" placeholder="opcional, ej. KB3.3.0" />
+      </div>
+      <div>
+        <label for="proj-comment">Comentario</label>
+        <input type="text" id="proj-comment" placeholder="opcional" />
+      </div>
+    </div>
+    <div class="hint" style="margin-top:10px;">
+      El UUID del proyecto y la cantidad de muestras se completan solos al generar el XML.
+      "ID de instrumento" se autocompleta con el primer archivo cargado, pero se puede editar.
+    </div>
+  </div>
+
+  <div class="panel">
     <div class="row" style="justify-content: space-between;">
       <strong style="font-size:0.85rem; color:#a0a8c8;">Muestras procesadas</strong>
       <div class="row">
         <button class="btn-secondary" id="btn-clear">Limpiar todo</button>
-        <button class="btn-primary" id="btn-zip" disabled>⬇ Descargar todo (.zip)</button>
+        <button class="btn-secondary" id="btn-zip" disabled>⬇ CSVs (.zip)</button>
+        <button class="btn-primary" id="btn-download-project-xml" disabled>⬇ XML del proyecto (MicrobeNet)</button>
       </div>
     </div>
   </div>
@@ -384,8 +429,10 @@
   // el modelo ("VITEK MS PRIME") y el fabricante ("bioMerieux") viajan en el
   // atributo `name` de un cvParam sin `value` (BM:1001080 / BM:1001081), y el
   // apodo del equipo + nro de serie sí tienen `value` (BM:1001071 / MS:1000529).
-  function extractInstrumentName(instrumentConfig) {
-    if (!instrumentConfig) return null;
+  function extractInstrumentInfo(instrumentConfig) {
+    if (!instrumentConfig) {
+      return { display: null, model: null, serial: null, acquisitionMethod: null };
+    }
     const direct = Array.from(instrumentConfig.children).filter(c => c.tagName === 'cvParam');
     const byAcc = {};
     direct.forEach(p => { byAcc[p.getAttribute('accession')] = p; });
@@ -394,17 +441,27 @@
     const model = byAcc['BM:1001080'] ? byAcc['BM:1001080'].getAttribute('name') : null;
     const nickname = byAcc['BM:1001071'] ? byAcc['BM:1001071'].getAttribute('value') : null;
     const serial = byAcc['MS:1000529'] ? byAcc['MS:1000529'].getAttribute('value') : null;
+    const acquisitionMethod = byAcc['BM:1001066'] ? byAcc['BM:1001066'].getAttribute('value') : null;
 
     const parts = [];
     const brand = [manufacturer, model].filter(Boolean).join(' ');
     if (brand) parts.push(brand);
     if (nickname) parts.push(nickname);
     if (serial) parts.push('S/N ' + serial);
-    if (parts.length) return parts.join(' · ');
 
-    // Fallback genérico para instrumentos que no usan ese esquema BM conocido.
-    const generic = direct.filter(p => p.getAttribute('value')).map(p => `${p.getAttribute('name')}=${p.getAttribute('value')}`);
-    return generic.length ? generic.join(', ') : null;
+    let display = parts.length ? parts.join(' · ') : null;
+    if (!display) {
+      // Fallback genérico para instrumentos que no usan ese esquema BM conocido.
+      const generic = direct.filter(p => p.getAttribute('value')).map(p => `${p.getAttribute('name')}=${p.getAttribute('value')}`);
+      display = generic.length ? generic.join(', ') : null;
+    }
+
+    return { display, model, serial, acquisitionMethod };
+  }
+
+  function findCvValue(paramList, accession) {
+    const p = paramList.find(p => p.getAttribute('accession') === accession);
+    return p ? p.getAttribute('value') : null;
   }
 
   function parseGlobalMetadata(root) {
@@ -427,9 +484,17 @@
     }
 
     const instrumentConfig = root.getElementsByTagName('instrumentConfiguration')[0];
-    const instrumentName = extractInstrumentName(instrumentConfig);
+    const instrumentInfo = extractInstrumentInfo(instrumentConfig);
 
-    return { startTimeStamp, sourceFileName, instrumentName, slideBarcode };
+    return {
+      startTimeStamp,
+      sourceFileName,
+      slideBarcode,
+      instrumentName: instrumentInfo.display,
+      instrumentModel: instrumentInfo.model,
+      instrumentSerial: instrumentInfo.serial,
+      acquisitionMethod: instrumentInfo.acquisitionMethod,
+    };
   }
 
   function getScanWindowBounds(spectrumEl) {
@@ -474,6 +539,15 @@
       }
     }
 
+    // Campos propietarios bioMérieux (BM) vistos como hijos directos de
+    // <spectrum> en archivos reales de VITEK MS PRIME: se usan para
+    // reconstruir el nombre de Analyte que espera MicrobeNet (ver
+    // buildAnalyteName más abajo).
+    const sampleType = findCvValue(directCvParams, 'BM:1001034');
+    const scopeMode = findCvValue(directCvParams, 'BM:1001083');
+    const acquisitionCount = findCvValue(directCvParams, 'BM:1001033');
+    const qualityIndicator = findCvValue(directCvParams, 'BM:1001031');
+
     const binaryArrays = Array.from(spectrumEl.getElementsByTagName('binaryDataArray'));
     let mz = null, intensity = null;
     for (const arr of binaryArrays) {
@@ -484,7 +558,10 @@
 
     const scanWindow = getScanWindowBounds(spectrumEl);
 
-    return { id, index, spotIdAttr, isCentroid, isProfile, msLevel, spotId, mz, intensity, scanWindow };
+    return {
+      id, index, spotIdAttr, isCentroid, isProfile, msLevel, spotId, mz, intensity, scanWindow,
+      sampleType, scopeMode, acquisitionCount, qualityIndicator,
+    };
   }
 
   async function readAsXmlText(file) {
@@ -533,11 +610,14 @@
         warnings.push('El espectro no indica si es centroidal o de perfil; se trató como perfil (detección de picos).');
       }
 
-      const defaultSampleId = (globalMeta.slideBarcode && parsed.spotIdAttr)
-        ? `${globalMeta.slideBarcode}_${parsed.spotIdAttr}`
-        : (parsed.spotIdAttr || parsed.spotId || parsed.id || (baseName + (spectra.length > 1 ? '_' + i : '')));
+      const targetPosition = parsed.spotIdAttr || parsed.spotId || '';
+      const defaultSampleId = (globalMeta.slideBarcode && targetPosition)
+        ? `${globalMeta.slideBarcode}_${targetPosition}`
+        : (targetPosition || parsed.id || (baseName + (spectra.length > 1 ? '_' + i : '')));
 
-      return {
+      const acquisitionDateObj = globalMeta.startTimeStamp ? new Date(globalMeta.startTimeStamp) : null;
+
+      const sample = {
         localId: 'm' + (sampleSeq++),
         sourceFileName: file.name,
         spectrumId: parsed.id,
@@ -551,10 +631,27 @@
         intensity: parsed.intensity,
         scanWindow: parsed.scanWindow,
         acquisitionDate: globalMeta.startTimeStamp,
+        acquisitionDateObj: acquisitionDateObj && !isNaN(acquisitionDateObj) ? acquisitionDateObj : null,
         instrument: globalMeta.instrumentName,
+        instrumentModel: globalMeta.instrumentModel,
+        instrumentSerial: globalMeta.instrumentSerial,
+        acquisitionMethod: globalMeta.acquisitionMethod,
+        slideBarcode: globalMeta.slideBarcode,
+        targetPosition,
+        sampleType: parsed.sampleType,
+        scopeMode: parsed.scopeMode,
+        acquisitionCount: parsed.acquisitionCount,
+        qualityIndicator: parsed.qualityIndicator,
         warnings,
         peaks: [],
+        // Identificadores estables para el XML de MicrobeNet: se generan una
+        // sola vez acá, no cambian aunque se reprocesen los picos.
+        mspInternId: makeUuid(),
+        mspPeaklistUuid: makeUuid(),
+        mspNameOverridden: false,
       };
+      sample.mspName = buildAnalyteName(sample, { kbVersion: '' });
+      return sample;
     });
   }
 
@@ -615,7 +712,7 @@
   }
 
   // ---------------------------------------------------------------------
-  // Generación de salidas (XML borrador / CSV)
+  // Generación de salidas (XML MicrobeNet / CSV)
   // ---------------------------------------------------------------------
   function escapeXml(s) {
     return String(s == null ? '' : s).replace(/[<>&'"]/g, c => ({
@@ -623,38 +720,114 @@
     }[c]));
   }
 
-  // ÚNICO lugar donde vive el mapeo a XML. Marcado como borrador: ver el
-  // banner de advertencia de la página para el motivo. Ajustar nombres de
-  // etiquetas acá una vez que se cuente con un .xml real aceptado por
-  // MicrobeNet contra el cual comparar.
-  function buildDraftXml(sample) {
+  function makeUuid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+
+  const SPANISH_MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  function formatSpanishDate(date) {
+    return `${date.getDate()} ${SPANISH_MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+  }
+
+  // Formato "AAAA-MM-DDHH-mm-ss" (sin separador entre fecha y hora) visto en
+  // el nombre de Analyte de un archivo real aceptado por MicrobeNet.
+  function formatCompactTimestamp(date) {
+    const p = n => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}${p(date.getHours())}-${p(date.getMinutes())}-${p(date.getSeconds())}`;
+  }
+
+  // Sólo se confirmó "colony" -> "COL" contra el archivo de referencia. Para
+  // cualquier otro valor de "sample type" se usa el texto tal cual (sin
+  // inventar una abreviatura de 3 letras que no se pudo verificar).
+  const SAMPLE_TYPE_ABBREV = { colony: 'COL' };
+  function abbreviateSampleType(raw) {
+    if (!raw) return null;
+    const key = raw.trim().toLowerCase();
+    return SAMPLE_TYPE_ABBREV[key] || raw.trim().toUpperCase().replace(/\s+/g, '');
+  }
+
+  // mass="10959.4" en el archivo de referencia (no "10959.400"): se redondea
+  // a 3 decimales y se deja que el formateo natural de número de JS recorte
+  // los ceros finales, igual que en ese ejemplo.
+  function formatMass(mz) {
+    return String(Math.round(mz * 1000) / 1000);
+  }
+
+  // Reconstruye el nombre de Analyte/externId que usa MicrobeNet, a partir
+  // del patrón observado en un archivo real aceptado:
+  //   ES00116_DS234773051_A1_COL_VMSPRIME_IVD_pl-IVD_1.0.8_1_GOOD_KB3.3.0_2024-11-2210-17-59
+  // Cada segmento sale de un cvParam propietario (BM) del .mzML, EXCEPTO la
+  // versión de KB (base de conocimiento del Biotyper), que no viaja en el
+  // .mzML y se toma del campo "Versión de KB" del proyecto (puede quedar
+  // vacío). El formato exacto del segmento de método de adquisición
+  // ("pl-IVD_1.0.8") es específico de cada protocolo/laboratorio: se usa el
+  // valor crudo del .mzML en vez de intentar adivinar ese formato.
+  function buildAnalyteName(sample, project) {
+    const date = sample.acquisitionDateObj || new Date();
+    const parts = [
+      sample.instrumentSerial,
+      sample.slideBarcode,
+      sample.targetPosition,
+      abbreviateSampleType(sample.sampleType),
+      'VMSPRIME',
+      sample.scopeMode,
+      sample.acquisitionMethod,
+      sample.acquisitionCount,
+      sample.qualityIndicator,
+      project && project.kbVersion,
+      formatCompactTimestamp(date),
+    ].filter(v => v !== null && v !== undefined && v !== '');
+    return parts.join('_');
+  }
+
+  // Normaliza los picos a intensidad relativa 0-1 (pico más alto = 1), tal
+  // como se ve en el archivo de referencia. `intensityScale` se guarda como
+  // 1/máximo para que sea auto-consistente con los picos exportados; su
+  // significado exacto dentro del formato de bioMérieux/Bruker no se pudo
+  // confirmar de forma independiente (no afecta los datos de identificación,
+  // que son masa + intensidad relativa).
+  function buildPeaklistPeaks(sample) {
+    let max = 0;
+    for (const p of sample.peaks) if (p.intensity > max) max = p.intensity;
+    if (max <= 0) max = 1;
+    const intensityScale = 1 / max;
     const peaksXml = sample.peaks
-      .map(p => `    <Peak mass="${p.mz.toFixed(4)}" intensity="${p.intensity.toFixed(2)}"/>`)
+      .map(p => `<Peak intensity="${p.intensity * intensityScale}" mass="${formatMass(p.mz)}" profile="1.0" sigma="10.0"/>`)
       .join('\n');
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<!--
-  PLANTILLA PROVISORIA - esquema sin verificar contra MicrobeNet.
-  Generado por el Convertidor de archivos bioMérieux a partir de un archivo .mzML de
-  VITEK MS PRIME. Antes de importar este archivo en MicrobeNet, compararlo
-  campo a campo contra un .xml real aceptado (exportado por el software
-  Bruker MALDI Biotyper, carpeta "HT-Out") y ajustar esta plantilla si hace
-  falta.
--->
-<MSSpectrumExport xmlns="urn:tacometro:mzml-a-microbenet:draft-v1">
-  <Isolate>
-    <SampleId>${escapeXml(sample.sampleId)}</SampleId>
-    <Organism>${escapeXml(sample.organism)}</Organism>
-    <SourceFile>${escapeXml(sample.sourceFileName)}</SourceFile>
-    <SpectrumId>${escapeXml(sample.spectrumId)}</SpectrumId>
-    <AcquisitionDate>${escapeXml(sample.acquisitionDate)}</AcquisitionDate>
-    <Instrument>${escapeXml(sample.instrument)}</Instrument>
-  </Isolate>
-  <Spectrum msLevel="${escapeXml(sample.msLevel || '1')}" peakCount="${sample.peaks.length}">
-    <PeakList>
+    return { intensityScale, peaksXml };
+  }
+
+  function buildAnalyteXml(sample, project) {
+    const name = buildAnalyteName(sample, project);
+    const timestamp = formatSpanishDate(sample.acquisitionDateObj || new Date());
+    const { intensityScale, peaksXml } = buildPeaklistPeaks(sample);
+    return `<Analyte name="${escapeXml(name)}" internId="${escapeXml(sample.mspInternId)}" externId="${escapeXml(name)}" description="" typeName="Sample" timestamp="${escapeXml(timestamp)}" targetChip="0" targetPosition="${escapeXml(sample.targetPosition)}">
+<Peaklist intensityScale="${intensityScale}" userCrafted="true" uuid="${escapeXml(sample.mspPeaklistUuid)}">
+<Peaks>
 ${peaksXml}
-    </PeakList>
-  </Spectrum>
-</MSSpectrumExport>
+</Peaks>
+</Peaklist>
+</Analyte>`;
+  }
+
+  // Genera el archivo <MspMatchResult> completo del proyecto/lote, con un
+  // <Analyte> por muestra cargada. Es el archivo pensado para subir a
+  // MicrobeNet (a diferencia de un XML por muestra: el formato real agrupa
+  // todo un lote/lámina en un único archivo).
+  function buildProjectXml(project, samples) {
+    const analytesXml = samples.map(sample => buildAnalyteXml(sample, project)).join('\n');
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<MspMatchResult>
+<ProjectInfo name="${escapeXml(project.name)}" timestamp="${escapeXml(project.timestamp)}" instrumentId="${escapeXml(project.instrumentId)}" externalTargetId="${escapeXml(project.externalTargetId)}" uuid="${escapeXml(project.uuid)}" validationPosition="" validationResult="" projectTypeName="${escapeXml(project.projectTypeName)}" creator="${escapeXml(project.creator)}" totalSampleNumber="${samples.length}" comment="${escapeXml(project.comment)}"/>
+<Analytes>
+${analytesXml}
+</Analytes>
+</MspMatchResult>
 `;
   }
 
@@ -740,10 +913,29 @@ ${peaksXml}
   const samplesEl = document.getElementById('samples');
   const emptyStateEl = document.getElementById('empty-state');
   const btnZip = document.getElementById('btn-zip');
+  const btnDownloadProjectXml = document.getElementById('btn-download-project-xml');
+  let projectUuid = null;
+  let instrumentIdAutoFilled = false;
+
+  function getProjectInfo() {
+    if (!projectUuid) projectUuid = makeUuid();
+    return {
+      name: document.getElementById('proj-name').value.trim() || 'Proyecto',
+      instrumentId: document.getElementById('proj-instrument').value.trim(),
+      externalTargetId: document.getElementById('proj-external-id').value.trim(),
+      projectTypeName: document.getElementById('proj-type').value.trim(),
+      creator: document.getElementById('proj-creator').value.trim(),
+      kbVersion: document.getElementById('proj-kb').value.trim(),
+      comment: document.getElementById('proj-comment').value.trim(),
+      uuid: projectUuid,
+      timestamp: formatSpanishDate(new Date()),
+    };
+  }
 
   function updateEmptyState() {
     emptyStateEl.style.display = state.samples.length ? 'none' : 'block';
     btnZip.disabled = state.samples.length === 0;
+    btnDownloadProjectXml.disabled = state.samples.length === 0;
   }
 
   function buildSampleCard(sample) {
@@ -753,6 +945,10 @@ ${peaksXml}
 
     const warnBadges = sample.warnings.map(w => `<span class="badge warn">${escapeXml(w)}</span>`).join('');
     const typeBadge = sample.isCentroid ? 'centroidal' : (sample.isProfile ? 'perfil' : 'tipo desconocido');
+    const qualityBadge = sample.qualityIndicator
+      ? `<span class="badge${sample.qualityIndicator.toUpperCase() === 'GOOD' ? '' : ' warn'}">spot: ${escapeXml(sample.qualityIndicator)}</span>`
+      : '';
+    const sampleTypeBadge = sample.sampleType ? `<span class="badge">${escapeXml(sample.sampleType)}</span>` : '';
 
     card.innerHTML = `
       <div class="sample-head">
@@ -761,6 +957,8 @@ ${peaksXml}
           <span class="badge">${escapeXml(typeBadge)}</span>
           <span class="badge">MS${escapeXml(sample.msLevel || '?')}</span>
           <span class="badge peak-count-badge">0 picos</span>
+          ${sampleTypeBadge}
+          ${qualityBadge}
           ${warnBadges}
         </div>
       </div>
@@ -774,11 +972,16 @@ ${peaksXml}
           <label>Organismo (opcional)</label>
           <input type="text" class="field-organism" value="${escapeXml(sample.organism)}" placeholder="sin identificar" />
         </div>
+        <div>
+          <label>Nombre MSP (name / externId)</label>
+          <input type="text" class="field-msp-name" value="${escapeXml(sample.mspName)}" />
+        </div>
       </div>
 
       <div class="meta-line">
         Adquirido: ${escapeXml(sample.acquisitionDate || 'sin dato')} ·
-        Instrumento: ${escapeXml(sample.instrument || 'sin dato')}
+        Instrumento: ${escapeXml(sample.instrument || 'sin dato')} ·
+        Posición: ${escapeXml(sample.targetPosition || 'sin dato')}
       </div>
 
       <canvas class="spectrum"></canvas>
@@ -791,7 +994,6 @@ ${peaksXml}
       </div>
 
       <div class="row">
-        <button class="btn-secondary btn-dl-xml">⬇ XML (borrador)</button>
         <button class="btn-secondary btn-dl-csv">⬇ CSV de picos</button>
       </div>
     `;
@@ -802,8 +1004,9 @@ ${peaksXml}
     card.querySelector('.field-organism').addEventListener('input', e => {
       sample.organism = e.target.value;
     });
-    card.querySelector('.btn-dl-xml').addEventListener('click', () => {
-      triggerDownload(new Blob([buildDraftXml(sample)], { type: 'application/xml' }), sanitizeFilename(sample.sampleId) + '.xml');
+    card.querySelector('.field-msp-name').addEventListener('input', e => {
+      sample.mspName = e.target.value;
+      sample.mspNameOverridden = true;
     });
     card.querySelector('.btn-dl-csv').addEventListener('click', () => {
       triggerDownload(new Blob([buildCsv(sample)], { type: 'text/csv' }), sanitizeFilename(sample.sampleId) + '_picos.csv');
@@ -855,6 +1058,13 @@ ${peaksXml}
           document.getElementById('opt-min-mz').value = Math.floor(samples[0].scanWindow.min);
           document.getElementById('opt-max-mz').value = Math.ceil(samples[0].scanWindow.max);
         }
+        // Autocompletar "ID de instrumento" del proyecto con el modelo +
+        // nro. de serie del primer archivo cargado (se puede editar después).
+        if (!instrumentIdAutoFilled && samples.length && (samples[0].instrumentModel || samples[0].instrumentSerial)) {
+          instrumentIdAutoFilled = true;
+          const projInstrumentEl = document.getElementById('proj-instrument');
+          projInstrumentEl.value = [samples[0].instrumentModel, samples[0].instrumentSerial].filter(Boolean).join(' ');
+        }
         for (const sample of samples) {
           state.samples.push(sample);
           processAndRenderSample(sample);
@@ -902,7 +1112,7 @@ ${peaksXml}
     updateEmptyState();
   });
 
-  // Descargar todo como .zip (XML + CSV por muestra)
+  // Descargar los CSV de picos de todas las muestras en un .zip
   btnZip.addEventListener('click', () => {
     const files = {};
     const used = new Set();
@@ -912,12 +1122,35 @@ ${peaksXml}
       let n = 2;
       while (used.has(candidate)) { candidate = base + '_' + n; n++; }
       used.add(candidate);
-      files[candidate + '.xml'] = fflate.strToU8(buildDraftXml(sample));
       files[candidate + '_picos.csv'] = fflate.strToU8(buildCsv(sample));
     }
     const zipped = fflate.zipSync(files);
-    triggerDownload(new Blob([zipped], { type: 'application/zip' }), 'muestras_microbenet.zip');
+    triggerDownload(new Blob([zipped], { type: 'application/zip' }), 'picos_muestras.zip');
   });
+
+  // Descargar el XML del proyecto completo (todas las muestras cargadas en un solo <MspMatchResult>)
+  btnDownloadProjectXml.addEventListener('click', () => {
+    if (state.samples.length === 0) return;
+    const project = getProjectInfo();
+    const xml = buildProjectXml(project, state.samples);
+    triggerDownload(new Blob([xml], { type: 'application/xml' }), sanitizeFilename(project.name || 'proyecto') + '.xml');
+  });
+
+  // Si se completa la versión de KB después de cargar archivos, recalcular
+  // el nombre MSP de las muestras que el usuario no haya editado a mano.
+  document.getElementById('proj-kb').addEventListener('input', () => {
+    const project = getProjectInfo();
+    for (const sample of state.samples) {
+      if (sample.mspNameOverridden) continue;
+      sample.mspName = buildAnalyteName(sample, project);
+      if (sample._card) {
+        const input = sample._card.querySelector('.field-msp-name');
+        if (input) input.value = sample.mspName;
+      }
+    }
+  });
+
+  document.getElementById('proj-name').value = 'Corrida ' + formatSpanishDate(new Date());
 
   updateEmptyState();
 })();
