@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>mzML → XML MicrobeNet</title>
+<title>Convertidor de archivos bioMérieux → MicrobeNet</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -37,13 +37,6 @@
     color: #a0a8c8;
     margin-top: 4px;
   }
-
-  a.back {
-    color: #a0d8ef;
-    font-size: 0.8rem;
-    text-decoration: none;
-  }
-  a.back:hover { text-decoration: underline; }
 
   .panel {
     background: #16213e;
@@ -233,8 +226,7 @@
 <div class="wrap">
 
   <div>
-    <a class="back" href="tacometro.html">← Tacómetro</a>
-    <h1>mzML → XML MicrobeNet
+    <h1>Convertidor de archivos bioMérieux
       <small>Convierte corridas de VITEK MS PRIME (.mzML) en una lista de picos y un XML para importar en MicrobeNet</small>
     </h1>
   </div>
@@ -642,7 +634,7 @@
     return `<?xml version="1.0" encoding="UTF-8"?>
 <!--
   PLANTILLA PROVISORIA - esquema sin verificar contra MicrobeNet.
-  Generado por mzml-a-microbenet.html a partir de un archivo .mzML de
+  Generado por el Convertidor de archivos bioMérieux a partir de un archivo .mzML de
   VITEK MS PRIME. Antes de importar este archivo en MicrobeNet, compararlo
   campo a campo contra un .xml real aceptado (exportado por el software
   Bruker MALDI Biotyper, carpeta "HT-Out") y ajustar esta plantilla si hace
