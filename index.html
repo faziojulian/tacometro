@@ -301,6 +301,31 @@
 
   .hint { font-size: 0.72rem; color: #7d8bb0; line-height: 1.5; }
 
+  .info-note {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    background: #14243f;
+    border: 1px solid #2b4d7a;
+    border-left: 3px solid #2f9bd6;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: #c7d4ea;
+  }
+  .info-note svg { flex: 0 0 auto; color: #5ec8f8; margin-top: 1px; }
+  .info-note b { color: #e8eefb; }
+  .info-note code {
+    background: #0f1a33;
+    border: 1px solid #2b4d7a;
+    border-radius: 4px;
+    padding: 0 5px;
+    font-size: 0.9em;
+    color: #9fe0ff;
+  }
+
   table.peaks tbody tr:hover { background: #172344; }
 
   .site-footer {
@@ -436,6 +461,14 @@
 
   <div class="panel">
     <div class="panel-title"><span class="step">3</span> Subí tus archivos .mzML</div>
+    <div class="info-note">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+      <div>
+        Para evaluar los espectros en otras plataformas de identificación, usá los archivos rotulados como
+        <b>IVD</b> o <b>RUO</b>. Evitá los que llevan la denominación <b><code>AVG</code></b>
+        (espectro promediado), ya que no corresponden a una adquisición individual.
+      </div>
+    </div>
     <div id="dropzone">
       <div class="drop-icon">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m6 10 6-6 6 6"/><path d="M4 20h16"/></svg>
