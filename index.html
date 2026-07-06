@@ -5,16 +5,40 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Convertidor de espectros VITEK® MS · mzML → XML</title>
 <style>
+  /* ---------- Paleta "instrumento": pizarra profunda + cian + ámbar ---------- */
+  :root {
+    --bg:          #0a1219;
+    --surface:     #101c26;
+    --surface-2:   #0c161e;
+    --surface-3:   #0a141c;   /* fondo del gráfico */
+    --border:      #223240;
+    --border-soft: #1a2732;
+    --ink:         #e7eff6;
+    --ink-2:       #9db2c2;
+    --ink-3:       #647787;
+    --accent:      #38bdf8;   /* cian */
+    --accent-2:    #0ea5e9;
+    --accent-deep: #0b6ea3;
+    --accent-soft: rgba(56,189,248,0.14);
+    --amber:       #f5a524;   /* picos / datos */
+    --good-bg:     #0f2f28;
+    --good-fg:     #4bd6a0;
+    --warn-bg:     #3a2c12;
+    --warn-fg:     #f0c274;
+    --danger-brd:  #7a3340;
+    --danger-bg:   #23141a;
+  }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
     min-height: 100vh;
     background:
-      radial-gradient(900px 500px at 15% -10%, rgba(47,155,214,0.16), transparent 60%),
-      radial-gradient(700px 500px at 100% 0%, rgba(233,69,96,0.10), transparent 55%),
-      #12172b;
+      radial-gradient(900px 520px at 12% -12%, rgba(56,189,248,0.14), transparent 60%),
+      radial-gradient(760px 520px at 100% 2%, rgba(245,165,36,0.07), transparent 55%),
+      var(--bg);
     font-family: 'Segoe UI', system-ui, sans-serif;
-    color: #e8ecf6;
+    color: var(--ink);
     padding: 28px 16px 60px;
   }
 
@@ -31,18 +55,18 @@
     display: flex;
     align-items: center;
     gap: 28px;
-    background: linear-gradient(135deg, #182a4e 0%, #141d38 60%, #16213e 100%);
-    border: 1px solid #26355c;
+    background: linear-gradient(135deg, #12242f 0%, #0e1a23 62%, #101c26 100%);
+    border: 1px solid var(--border);
     border-radius: 20px;
     padding: 30px 32px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.45);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
   }
   .hero-text { flex: 1 1 auto; }
   .hero-eyebrow {
     font-size: 0.72rem;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: #5ec8f8;
+    color: var(--accent);
     font-weight: 600;
     margin-bottom: 10px;
   }
@@ -51,22 +75,23 @@
     line-height: 1.2;
     color: #fff;
     font-weight: 700;
+    text-wrap: balance;
   }
-  .hero h1 .reg { font-size: 0.9rem; vertical-align: super; color: #a9c7e6; font-weight: 400; }
+  .hero h1 .reg { font-size: 0.9rem; vertical-align: super; color: #9fc6dc; font-weight: 400; }
   .hero p {
     margin-top: 12px;
     font-size: 0.92rem;
     line-height: 1.55;
-    color: #b7c2dc;
+    color: var(--ink-2);
     max-width: 60ch;
   }
-  .hero p code {
-    background: #0f1a33;
-    border: 1px solid #26355c;
+  code {
+    background: #0b1a24;
+    border: 1px solid var(--border);
     border-radius: 5px;
     padding: 1px 6px;
     font-size: 0.82em;
-    color: #9fe0ff;
+    color: #8fe3ff;
   }
   .hero-art { flex: 0 0 auto; width: 210px; }
   .hero-art svg { width: 100%; height: auto; display: block; }
@@ -77,11 +102,11 @@
   }
 
   .panel {
-    background: #16213e;
-    border: 1px solid #223056;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 16px;
     padding: 20px 22px;
-    box-shadow: 0 6px 30px rgba(0,0,0,0.4);
+    box-shadow: 0 6px 30px rgba(0,0,0,0.35);
   }
 
   .panel-title {
@@ -90,7 +115,7 @@
     gap: 10px;
     font-size: 0.9rem;
     font-weight: 600;
-    color: #dbe3f4;
+    color: var(--ink);
     margin-bottom: 16px;
   }
   .panel-title .step {
@@ -100,8 +125,8 @@
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #2f9bd6, #1d6fa5);
-    color: #fff;
+    background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+    color: #04141d;
     font-size: 0.8rem;
     font-weight: 700;
     flex: 0 0 auto;
@@ -109,23 +134,24 @@
   .panel-title .spacer { flex: 1 1 auto; }
 
   #dropzone {
-    border: 2px dashed #334a6b;
+    border: 2px dashed #2c4150;
     border-radius: 14px;
     padding: 36px 20px;
     text-align: center;
-    color: #a0a8c8;
+    color: var(--ink-2);
     font-size: 0.9rem;
     cursor: pointer;
-    transition: border-color .15s, background .15s;
+    transition: border-color .15s, background .15s, transform .15s;
   }
-  #dropzone.drag { border-color: #2f9bd6; background: #16274a; transform: scale(1.005); }
-  #dropzone strong { color: #e0e6f5; }
+  #dropzone:hover { border-color: var(--accent-deep); background: var(--surface-2); }
+  #dropzone.drag { border-color: var(--accent); background: #10222e; transform: scale(1.005); }
+  #dropzone strong { color: var(--ink); }
   #dropzone .drop-icon {
     width: 44px; height: 44px; margin: 0 auto 12px;
     display: flex; align-items: center; justify-content: center;
     border-radius: 50%;
-    background: linear-gradient(135deg, #2f9bd6, #1d6fa5);
-    color: #fff;
+    background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+    color: #04141d;
   }
   #file-input { display: none; }
 
@@ -135,25 +161,30 @@
     gap: 14px;
     align-items: end;
   }
-  .opts label {
+  .opts label, .fields label {
     display: block;
-    font-size: 0.72rem;
-    color: #a0a8c8;
+    font-size: 0.7rem;
+    color: var(--ink-2);
     margin-bottom: 5px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
-  .opts input {
+  input[type="text"], input[type="number"] {
     width: 100%;
     padding: 8px 10px;
     border-radius: 8px;
-    border: 1.5px solid #334a6b;
-    background: #0f3460;
-    color: #eee;
+    border: 1.5px solid var(--border);
+    background: var(--surface-2);
+    color: var(--ink);
     font-size: 0.9rem;
     outline: none;
+    transition: border-color .15s, box-shadow .15s;
   }
-  .opts input:focus { border-color: #e94560; }
+  input[type="text"]:focus, input[type="number"]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  input::placeholder { color: #506374; }
 
   button {
     padding: 9px 18px;
@@ -163,33 +194,32 @@
     font-size: 0.85rem;
     font-weight: 600;
     letter-spacing: 0.03em;
-    transition: background .15s, transform .1s;
+    transition: filter .15s, background .15s, transform .1s;
     white-space: nowrap;
   }
   button:active { transform: scale(0.97); }
   button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  .btn-primary { background: linear-gradient(135deg, #2f9bd6, #1d6fa5); color: #fff; box-shadow: 0 3px 12px rgba(47,155,214,0.35); }
+  .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-deep)); color: #04141d; box-shadow: 0 3px 14px rgba(56,189,248,0.3); }
   .btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
 
-  .btn-secondary { background: #14264a; color: #a9d6f2; border: 1.5px solid #2b476f; }
-  .btn-secondary:hover:not(:disabled) { background: #183055; }
+  .btn-secondary { background: #14242f; color: #a7d8ef; border: 1.5px solid #2a3f4e; }
+  .btn-secondary:hover:not(:disabled) { background: #1a2f3c; }
 
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
   #samples { display: flex; flex-direction: column; gap: 16px; }
 
   .sample-card {
-    background: #131c33;
-    border: 1px solid #263353;
+    background: var(--surface-2);
+    border: 1px solid var(--border-soft);
     border-radius: 14px;
     padding: 16px 18px;
     display: flex;
     flex-direction: column;
     gap: 12px;
   }
-
-  .sample-card.error { border-color: #7a2f3a; background: #241521; }
+  .sample-card.error { border-color: var(--danger-brd); background: var(--danger-bg); }
 
   .sample-head {
     display: flex;
@@ -198,59 +228,38 @@
     flex-wrap: wrap;
     gap: 8px;
   }
-  .sample-head .file-name { font-size: 0.78rem; color: #7d8bb0; }
+  .sample-head .file-name { font-size: 0.78rem; color: var(--ink-2); }
   .badges { display: flex; gap: 6px; flex-wrap: wrap; }
   .badge {
     font-size: 0.68rem;
     padding: 2px 8px;
     border-radius: 999px;
-    background: #263353;
-    color: #a0d8ef;
+    background: #17303d;
+    color: #93cfe8;
     letter-spacing: 0.03em;
   }
-  .badge.warn { background: #4a3418; color: #ffcf80; }
-  .badge.good { background: #143b2a; color: #7fe0ad; }
+  .badge.warn { background: var(--warn-bg); color: var(--warn-fg); }
+  .badge.good { background: var(--good-bg); color: var(--good-fg); }
 
   .fields {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 10px;
   }
-  .fields label {
-    display: block;
-    font-size: 0.7rem;
-    color: #7d8bb0;
-    margin-bottom: 4px;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-  }
-  .fields input {
-    width: 100%;
-    padding: 7px 9px;
-    border-radius: 7px;
-    border: 1.5px solid #2c3a5c;
-    background: #0f3460;
-    color: #eee;
-    font-size: 0.85rem;
-    outline: none;
-  }
-  .fields input:focus { border-color: #e94560; }
 
   .spectrum-title {
     font-size: 0.72rem;
-    color: #7d8bb0;
+    color: var(--ink-2);
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
-
-  .spectrum-wrap {
-    position: relative;
-  }
+  .spectrum-wrap { position: relative; }
 
   canvas.spectrum {
     width: 100%;
     height: 200px;
-    background: #0f1730;
+    background: var(--surface-3);
+    border: 1px solid var(--border-soft);
     border-radius: 8px;
     display: block;
     cursor: crosshair;
@@ -259,85 +268,102 @@
   .spectrum-tooltip {
     position: absolute;
     top: 8px;
-    padding: 4px 9px;
-    border-radius: 6px;
-    background: #050a16;
-    border: 1px solid #263353;
-    color: #eee;
+    padding: 5px 10px;
+    border-radius: 7px;
+    background: #04101a;
+    border: 1px solid var(--border);
+    color: var(--ink);
     font-size: 0.72rem;
     white-space: nowrap;
     pointer-events: none;
     transform: translateX(-50%);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
     display: none;
   }
+  .spectrum-tooltip b { color: var(--accent); }
 
   .peak-table-wrap {
     max-height: 180px;
     overflow-y: auto;
-    border: 1px solid #263353;
+    border: 1px solid var(--border-soft);
     border-radius: 8px;
   }
   table.peaks {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
   }
   table.peaks th, table.peaks td {
     padding: 5px 10px;
     text-align: right;
-    border-bottom: 1px solid #1e2846;
+    border-bottom: 1px solid var(--border-soft);
   }
-  table.peaks th { color: #7d8bb0; position: sticky; top: 0; background: #16213e; text-align: right; }
-  table.peaks td:first-child, table.peaks th:first-child { text-align: left; }
+  table.peaks th { color: var(--ink-2); position: sticky; top: 0; background: var(--surface); text-align: right; }
+  table.peaks td:first-child, table.peaks th:first-child { text-align: left; color: var(--ink-3); }
+  table.peaks tbody tr:hover { background: #12222c; }
 
-  .meta-line { font-size: 0.75rem; color: #7d8bb0; }
+  .meta-line { font-size: 0.75rem; color: var(--ink-2); }
 
   .empty-state {
-    color: #556;
+    color: var(--ink-3);
     font-size: 0.85rem;
     text-align: center;
-    padding: 12px;
+    padding: 16px 12px 4px;
   }
 
-  .hint { font-size: 0.72rem; color: #7d8bb0; line-height: 1.5; }
+  .hint { font-size: 0.72rem; color: var(--ink-3); line-height: 1.5; }
 
   .info-note {
     display: flex;
     gap: 10px;
     align-items: flex-start;
-    background: #14243f;
-    border: 1px solid #2b4d7a;
-    border-left: 3px solid #2f9bd6;
+    background: #10222e;
+    border: 1px solid #234455;
+    border-left: 3px solid var(--accent);
     border-radius: 10px;
     padding: 12px 14px;
     margin-bottom: 14px;
     font-size: 0.82rem;
     line-height: 1.5;
-    color: #c7d4ea;
+    color: #bcd0dd;
   }
-  .info-note svg { flex: 0 0 auto; color: #5ec8f8; margin-top: 1px; }
-  .info-note b { color: #e8eefb; }
-  .info-note code {
-    background: #0f1a33;
-    border: 1px solid #2b4d7a;
-    border-radius: 4px;
-    padding: 0 5px;
-    font-size: 0.9em;
-    color: #9fe0ff;
-  }
-
-  table.peaks tbody tr:hover { background: #172344; }
+  .info-note svg { flex: 0 0 auto; color: var(--accent); margin-top: 1px; }
+  .info-note b { color: var(--ink); }
 
   .site-footer {
     text-align: center;
     font-size: 0.72rem;
-    color: #6b78a0;
+    color: var(--ink-3);
     line-height: 1.6;
     margin-top: 8px;
     padding: 0 12px;
   }
-  .site-footer a { color: #7fb8e6; text-decoration: none; }
+  .site-footer a { color: var(--accent); text-decoration: none; }
   .site-footer a:hover { text-decoration: underline; }
+
+  .disclaimer {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    background: #1c1608;
+    border: 1px solid #4a3a12;
+    border-left: 3px solid var(--amber);
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: #d6c9ad;
+  }
+  .disclaimer svg { flex: 0 0 auto; color: var(--amber); margin-top: 1px; }
+  .disclaimer b { color: #f3e6c8; }
+  .disclaimer .title {
+    display: block;
+    font-weight: 700;
+    color: #f3e6c8;
+    margin-bottom: 3px;
+    letter-spacing: 0.02em;
+  }
 </style>
 </head>
 <body>
@@ -348,43 +374,56 @@
       <div class="hero-eyebrow">Espectrometría de masas · MALDI-TOF</div>
       <h1>Convertidor de espectros VITEK<span class="reg">®</span> MS</h1>
       <p>Transformá corridas de <b>VITEK<span class="reg">®</span> MS</b> y <b>VITEK MS PRIME</b>
-      (archivos <code>.mzML</code>) en archivos <code>.XML</code> y listas de picos, con vista previa
+      (archivos <code>.mzML</code>) en archivos <code>.XML</code>, con vista previa
       del espectro. Todo el procesamiento ocurre en tu navegador: los archivos nunca se suben a ningún servidor.</p>
     </div>
     <div class="hero-art" aria-hidden="true">
       <svg viewBox="0 0 220 190" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="grad-accent" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#5ec8f8"/>
-            <stop offset="1" stop-color="#2f9bd6"/>
+            <stop offset="0" stop-color="#7dd3fc"/>
+            <stop offset="1" stop-color="#38bdf8"/>
           </linearGradient>
         </defs>
         <!-- base -->
-        <rect x="18" y="150" width="184" height="14" rx="4" fill="#0e1730"/>
+        <rect x="18" y="150" width="184" height="14" rx="4" fill="#0a141c"/>
         <!-- instrument body -->
-        <rect x="26" y="52" width="168" height="100" rx="12" fill="#1c2c50" stroke="#31538a" stroke-width="2"/>
+        <rect x="26" y="52" width="168" height="100" rx="12" fill="#152530" stroke="#2b4756" stroke-width="2"/>
         <!-- screen -->
-        <rect x="40" y="66" width="96" height="72" rx="7" fill="#0a1330" stroke="#294066" stroke-width="1.5"/>
+        <rect x="40" y="66" width="96" height="72" rx="7" fill="#081119" stroke="#22333f" stroke-width="1.5"/>
         <!-- mini spectrum on screen -->
         <polyline points="46,128 54,120 60,126 66,96 72,124 80,110 86,128 94,84 100,122 108,104 116,127 124,116 130,128"
           fill="none" stroke="url(#grad-accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-        <circle cx="66" cy="96" r="2.6" fill="#e94560"/>
-        <circle cx="94" cy="84" r="2.6" fill="#e94560"/>
-        <circle cx="108" cy="104" r="2.6" fill="#e94560"/>
+        <circle cx="66" cy="96" r="2.6" fill="#f5a524"/>
+        <circle cx="94" cy="84" r="2.6" fill="#f5a524"/>
+        <circle cx="108" cy="104" r="2.6" fill="#f5a524"/>
         <!-- control panel -->
-        <rect x="150" y="70" width="30" height="8" rx="4" fill="#28436e"/>
-        <circle cx="156" cy="92" r="5" fill="#2f9bd6"/>
-        <circle cx="172" cy="92" r="5" fill="#31538a"/>
-        <rect x="150" y="106" width="30" height="26" rx="5" fill="#12203f" stroke="#28436e"/>
+        <rect x="150" y="70" width="30" height="8" rx="4" fill="#25404f"/>
+        <circle cx="156" cy="92" r="5" fill="#38bdf8"/>
+        <circle cx="172" cy="92" r="5" fill="#2b4756"/>
+        <rect x="150" y="106" width="30" height="26" rx="5" fill="#0f1d26" stroke="#25404f"/>
         <!-- sample drawer -->
-        <rect x="52" y="150" width="72" height="8" rx="3" fill="#28436e"/>
+        <rect x="52" y="150" width="72" height="8" rx="3" fill="#25404f"/>
         <!-- laser to plate -->
         <line x1="110" y1="30" x2="110" y2="52" stroke="url(#grad-accent)" stroke-width="2" stroke-dasharray="3 3"/>
-        <circle cx="110" cy="26" r="7" fill="none" stroke="#5ec8f8" stroke-width="2"/>
-        <circle cx="110" cy="26" r="2.5" fill="#5ec8f8"/>
+        <circle cx="110" cy="26" r="7" fill="none" stroke="#7dd3fc" stroke-width="2"/>
+        <circle cx="110" cy="26" r="2.5" fill="#7dd3fc"/>
       </svg>
     </div>
   </header>
+
+  <div class="disclaimer">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+    <div>
+      <span class="title">Aviso de responsabilidad</span>
+      Esta es una herramienta de <b>conversión de formato de archivos</b>: no es un dispositivo médico ni de
+      diagnóstico, y no genera identificaciones ni resultados clínicos. El uso de la herramienta y la
+      <b>validación de los archivos generados son responsabilidad exclusiva de cada usuario</b>, que debe
+      verificar los resultados antes de cualquier uso diagnóstico, informable o regulatorio. Se ofrece
+      "tal cual", sin garantías de ningún tipo y sin responsabilidad de los autores por su uso. Proyecto
+      independiente, sin afiliación ni respaldo oficial de bioMérieux.
+    </div>
+  </div>
 
   <div class="panel">
     <div class="panel-title">
@@ -466,7 +505,7 @@
       <div>
         Para evaluar los espectros en otras plataformas de identificación, usá los archivos rotulados como
         <b>IVD</b> o <b>RUO</b>. Evitá los que llevan la denominación <b><code>AVG</code></b>
-        (espectro promediado), ya que no corresponden a una adquisición individual.
+        (espectro promediado).
       </div>
     </div>
     <div id="dropzone">
@@ -1123,7 +1162,7 @@ ${analytesXml}
     ctx.textBaseline = 'top';
     for (const t of niceTicks(minMz, maxMz, 5)) {
       const x = xOf(t);
-      ctx.strokeStyle = '#1e2846';
+      ctx.strokeStyle = '#16232e';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(x, 0);
@@ -1133,19 +1172,19 @@ ${analytesXml}
       const label = String(Math.round(t));
       const labelW = ctx.measureText(label).width;
       const lx = Math.min(Math.max(x, labelW / 2 + 2), W - labelW / 2 - 2);
-      ctx.fillStyle = '#5c6a8c';
+      ctx.fillStyle = '#5a6f80';
       ctx.textAlign = 'center';
       ctx.fillText(label, lx, plotH + 3);
     }
 
-    ctx.strokeStyle = '#263353';
+    ctx.strokeStyle = '#223240';
     ctx.beginPath();
     ctx.moveTo(0, plotH);
     ctx.lineTo(W, plotH);
     ctx.stroke();
 
     // Trazo del espectro.
-    ctx.strokeStyle = '#2f9bd6';
+    ctx.strokeStyle = '#38bdf8';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     let started = false;
@@ -1157,7 +1196,7 @@ ${analytesXml}
     ctx.stroke();
 
     // Picos detectados.
-    ctx.fillStyle = '#e94560';
+    ctx.fillStyle = '#f5a524';
     for (const p of sample.peaks) {
       const x = xOf(p.mz), y = yOf(p.intensity);
       ctx.beginPath();
