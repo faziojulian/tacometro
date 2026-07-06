@@ -3,47 +3,110 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Convertidor de archivos bioMérieux → MicrobeNet</title>
+<title>Convertidor de espectros VITEK® MS · mzML → XML</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
     min-height: 100vh;
-    background: #1a1a2e;
-    font-family: 'Segoe UI', sans-serif;
-    color: #eee;
-    padding: 32px 16px 80px;
+    background:
+      radial-gradient(900px 500px at 15% -10%, rgba(47,155,214,0.16), transparent 60%),
+      radial-gradient(700px 500px at 100% 0%, rgba(233,69,96,0.10), transparent 55%),
+      #12172b;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: #e8ecf6;
+    padding: 28px 16px 60px;
   }
 
   .wrap {
-    max-width: 980px;
+    max-width: 1000px;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 18px;
   }
 
-  h1 {
-    font-size: 1.4rem;
-    letter-spacing: 0.06em;
-    color: #eee;
+  /* ---------- Hero ---------- */
+  .hero {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    background: linear-gradient(135deg, #182a4e 0%, #141d38 60%, #16213e 100%);
+    border: 1px solid #26355c;
+    border-radius: 20px;
+    padding: 30px 32px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.45);
   }
-
-  h1 small {
-    display: block;
-    font-size: 0.75rem;
-    font-weight: 400;
-    letter-spacing: 0.04em;
-    color: #a0a8c8;
-    margin-top: 4px;
+  .hero-text { flex: 1 1 auto; }
+  .hero-eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #5ec8f8;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .hero h1 {
+    font-size: 1.7rem;
+    line-height: 1.2;
+    color: #fff;
+    font-weight: 700;
+  }
+  .hero h1 .reg { font-size: 0.9rem; vertical-align: super; color: #a9c7e6; font-weight: 400; }
+  .hero p {
+    margin-top: 12px;
+    font-size: 0.92rem;
+    line-height: 1.55;
+    color: #b7c2dc;
+    max-width: 60ch;
+  }
+  .hero p code {
+    background: #0f1a33;
+    border: 1px solid #26355c;
+    border-radius: 5px;
+    padding: 1px 6px;
+    font-size: 0.82em;
+    color: #9fe0ff;
+  }
+  .hero-art { flex: 0 0 auto; width: 210px; }
+  .hero-art svg { width: 100%; height: auto; display: block; }
+  @media (max-width: 720px) {
+    .hero { flex-direction: column-reverse; text-align: center; padding: 26px 22px; }
+    .hero-art { width: 160px; }
+    .hero p { margin-left: auto; margin-right: auto; }
   }
 
   .panel {
     background: #16213e;
+    border: 1px solid #223056;
     border-radius: 16px;
     padding: 20px 22px;
     box-shadow: 0 6px 30px rgba(0,0,0,0.4);
   }
+
+  .panel-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #dbe3f4;
+    margin-bottom: 16px;
+  }
+  .panel-title .step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2f9bd6, #1d6fa5);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    flex: 0 0 auto;
+  }
+  .panel-title .spacer { flex: 1 1 auto; }
 
   #dropzone {
     border: 2px dashed #334a6b;
@@ -55,8 +118,15 @@
     cursor: pointer;
     transition: border-color .15s, background .15s;
   }
-  #dropzone.drag { border-color: #e94560; background: #1c2743; }
+  #dropzone.drag { border-color: #2f9bd6; background: #16274a; transform: scale(1.005); }
   #dropzone strong { color: #e0e6f5; }
+  #dropzone .drop-icon {
+    width: 44px; height: 44px; margin: 0 auto 12px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2f9bd6, #1d6fa5);
+    color: #fff;
+  }
   #file-input { display: none; }
 
   .opts {
@@ -99,11 +169,11 @@
   button:active { transform: scale(0.97); }
   button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  .btn-primary { background: #e94560; color: #fff; }
-  .btn-primary:hover:not(:disabled) { background: #c73652; }
+  .btn-primary { background: linear-gradient(135deg, #2f9bd6, #1d6fa5); color: #fff; box-shadow: 0 3px 12px rgba(47,155,214,0.35); }
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
 
-  .btn-secondary { background: #0f3460; color: #a0d8ef; border: 1.5px solid #0f5485; }
-  .btn-secondary:hover:not(:disabled) { background: #0f4070; }
+  .btn-secondary { background: #14264a; color: #a9d6f2; border: 1.5px solid #2b476f; }
+  .btn-secondary:hover:not(:disabled) { background: #183055; }
 
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
@@ -139,6 +209,7 @@
     letter-spacing: 0.03em;
   }
   .badge.warn { background: #4a3418; color: #ffcf80; }
+  .badge.good { background: #143b2a; color: #7fe0ad; }
 
   .fields {
     display: grid;
@@ -228,30 +299,73 @@
     padding: 12px;
   }
 
-  .hint { font-size: 0.72rem; color: #556; }
+  .hint { font-size: 0.72rem; color: #7d8bb0; line-height: 1.5; }
+
+  table.peaks tbody tr:hover { background: #172344; }
+
+  .site-footer {
+    text-align: center;
+    font-size: 0.72rem;
+    color: #6b78a0;
+    line-height: 1.6;
+    margin-top: 8px;
+    padding: 0 12px;
+  }
+  .site-footer a { color: #7fb8e6; text-decoration: none; }
+  .site-footer a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <div>
-    <h1>Convertidor de archivos bioMérieux
-      <small>Convierte corridas de VITEK MS PRIME (.mzML) en una lista de picos y un XML para importar en MicrobeNet</small>
-    </h1>
-  </div>
-
-  <div class="panel">
-    <div id="dropzone">
-      <div><strong>Arrastrá tus archivos .mzML acá</strong> o hacé clic para elegirlos</div>
-      <div class="hint">Se acepta más de un archivo a la vez (por lote) y .mzML comprimido en .gz</div>
-      <input id="file-input" type="file" accept=".mzml,.mzML,.mzml.gz,.gz" multiple />
+  <header class="hero">
+    <div class="hero-text">
+      <div class="hero-eyebrow">Espectrometría de masas · MALDI-TOF</div>
+      <h1>Convertidor de espectros VITEK<span class="reg">®</span> MS</h1>
+      <p>Transformá corridas de <b>VITEK<span class="reg">®</span> MS</b> y <b>VITEK MS PRIME</b>
+      (archivos <code>.mzML</code>) en archivos <code>.XML</code> y listas de picos, con vista previa
+      del espectro. Todo el procesamiento ocurre en tu navegador: los archivos nunca se suben a ningún servidor.</p>
     </div>
-  </div>
+    <div class="hero-art" aria-hidden="true">
+      <svg viewBox="0 0 220 190" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="grad-accent" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#5ec8f8"/>
+            <stop offset="1" stop-color="#2f9bd6"/>
+          </linearGradient>
+        </defs>
+        <!-- base -->
+        <rect x="18" y="150" width="184" height="14" rx="4" fill="#0e1730"/>
+        <!-- instrument body -->
+        <rect x="26" y="52" width="168" height="100" rx="12" fill="#1c2c50" stroke="#31538a" stroke-width="2"/>
+        <!-- screen -->
+        <rect x="40" y="66" width="96" height="72" rx="7" fill="#0a1330" stroke="#294066" stroke-width="1.5"/>
+        <!-- mini spectrum on screen -->
+        <polyline points="46,128 54,120 60,126 66,96 72,124 80,110 86,128 94,84 100,122 108,104 116,127 124,116 130,128"
+          fill="none" stroke="url(#grad-accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        <circle cx="66" cy="96" r="2.6" fill="#e94560"/>
+        <circle cx="94" cy="84" r="2.6" fill="#e94560"/>
+        <circle cx="108" cy="104" r="2.6" fill="#e94560"/>
+        <!-- control panel -->
+        <rect x="150" y="70" width="30" height="8" rx="4" fill="#28436e"/>
+        <circle cx="156" cy="92" r="5" fill="#2f9bd6"/>
+        <circle cx="172" cy="92" r="5" fill="#31538a"/>
+        <rect x="150" y="106" width="30" height="26" rx="5" fill="#12203f" stroke="#28436e"/>
+        <!-- sample drawer -->
+        <rect x="52" y="150" width="72" height="8" rx="3" fill="#28436e"/>
+        <!-- laser to plate -->
+        <line x1="110" y1="30" x2="110" y2="52" stroke="url(#grad-accent)" stroke-width="2" stroke-dasharray="3 3"/>
+        <circle cx="110" cy="26" r="7" fill="none" stroke="#5ec8f8" stroke-width="2"/>
+        <circle cx="110" cy="26" r="2.5" fill="#5ec8f8"/>
+      </svg>
+    </div>
+  </header>
 
   <div class="panel">
-    <div class="row" style="justify-content: space-between; margin-bottom: 14px;">
-      <strong style="font-size:0.85rem; color:#a0a8c8;">Ajustes de detección de picos</strong>
-      <button class="btn-secondary" id="btn-reprocess">Reprocesar muestras cargadas</button>
+    <div class="panel-title">
+      <span class="step">1</span> Ajustes de detección de picos
+      <span class="spacer"></span>
+      <button class="btn-secondary" id="btn-reprocess">Reprocesar muestras</button>
     </div>
     <div class="opts">
       <div>
@@ -263,8 +377,8 @@
         <input type="number" id="opt-max-mz" value="20000" min="0" step="1" />
       </div>
       <div>
-        <label for="opt-noise">Umbral de ruido (% del pico máximo)</label>
-        <input type="number" id="opt-noise" value="1" min="0" max="100" step="0.1" />
+        <label for="opt-min-sn">S/N mínimo</label>
+        <input type="number" id="opt-min-sn" value="3" min="0" step="0.5" />
       </div>
       <div>
         <label for="opt-max-peaks">Picos máximos por muestra</label>
@@ -276,22 +390,22 @@
       </div>
     </div>
     <div class="hint" style="margin-top:10px;">
-      Si el .mzML ya trae el espectro centroidal (picos discretos, tal como lo entrega VITEK MS PRIME
-      habitualmente), el umbral de ruido y la detección de picos por perfil no se aplican: se usan los
-      picos tal cual vienen, filtrados por rango de m/z e intensidad.
+      Se conservan los picos más representativos del espectro: máximos locales por encima de la relación
+      señal/ruido (S/N) mínima, hasta el tope indicado. El rango de m/z se autocompleta con el del propio
+      archivo. Con espectros centroidales (picos ya discretos), la S/N y la resolución no se recalculan.
     </div>
   </div>
 
   <div class="panel">
-    <strong style="font-size:0.85rem; color:#a0a8c8;">Datos del proyecto (para el XML de MicrobeNet)</strong>
-    <div class="opts" style="margin-top:14px;">
+    <div class="panel-title"><span class="step">2</span> Datos del proyecto (para el archivo .XML)</div>
+    <div class="opts">
       <div>
         <label for="proj-name">Nombre del proyecto</label>
-        <input type="text" id="proj-name" placeholder="Corrida ..." />
+        <input type="text" id="proj-name" placeholder="Proyecto ..." />
       </div>
       <div>
         <label for="proj-instrument">ID de instrumento</label>
-        <input type="text" id="proj-instrument" placeholder="VITEK MS PRIME ES00000" />
+        <input type="text" id="proj-instrument" placeholder="VITEK MS PRIME - ES00000" />
       </div>
       <div>
         <label for="proj-external-id">ID de destino externo</label>
@@ -306,8 +420,8 @@
         <input type="text" id="proj-creator" placeholder="usuario@laboratorio" />
       </div>
       <div>
-        <label for="proj-kb">Versión de KB (Biotyper)</label>
-        <input type="text" id="proj-kb" placeholder="opcional, ej. KB3.3.0" />
+        <label for="proj-kb">Versión de KB</label>
+        <input type="text" id="proj-kb" placeholder="opcional, ej. 3.3.0" />
       </div>
       <div>
         <label for="proj-comment">Comentario</label>
@@ -317,24 +431,39 @@
     <div class="hint" style="margin-top:10px;">
       El UUID del proyecto y la cantidad de muestras se completan solos al generar el XML.
       "ID de instrumento" se autocompleta con el primer archivo cargado, pero se puede editar.
-      "Tipo de proyecto" varía según el pipeline/laboratorio de origen (se vieron también
-      "Espectros Vitek" y "Espectros Bruker" en otros conversores reales para MicrobeNet).
     </div>
   </div>
 
   <div class="panel">
-    <div class="row" style="justify-content: space-between;">
-      <strong style="font-size:0.85rem; color:#a0a8c8;">Muestras procesadas</strong>
-      <div class="row">
-        <button class="btn-secondary" id="btn-clear">Limpiar todo</button>
-        <button class="btn-secondary" id="btn-zip" disabled>⬇ CSVs (.zip)</button>
-        <button class="btn-primary" id="btn-download-project-xml" disabled>⬇ XML del proyecto (MicrobeNet)</button>
+    <div class="panel-title"><span class="step">3</span> Subí tus archivos .mzML</div>
+    <div id="dropzone">
+      <div class="drop-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m6 10 6-6 6 6"/><path d="M4 20h16"/></svg>
       </div>
+      <div><strong>Arrastrá tus archivos .mzML acá</strong> o hacé clic para elegirlos</div>
+      <div class="hint" style="margin-top:4px;">Se acepta más de un archivo a la vez (por lote) y .mzML comprimido en .gz</div>
+      <input id="file-input" type="file" accept=".mzml,.mzML,.mzml.gz,.gz" multiple />
     </div>
   </div>
 
-  <div id="samples"></div>
-  <div class="empty-state" id="empty-state">Todavía no se cargó ningún archivo.</div>
+  <div class="panel">
+    <div class="panel-title">
+      <span class="step">4</span> Resultados
+      <span class="spacer"></span>
+      <div class="row">
+        <button class="btn-secondary" id="btn-clear">Limpiar todo</button>
+        <button class="btn-secondary" id="btn-zip" disabled>⬇ CSVs (.zip)</button>
+        <button class="btn-primary" id="btn-download-project-xml" disabled>⬇ Descargar XML del proyecto</button>
+      </div>
+    </div>
+    <div id="samples"></div>
+    <div class="empty-state" id="empty-state">Todavía no se cargó ningún archivo.</div>
+  </div>
+
+  <footer class="site-footer">
+    Proyecto independiente y de código abierto, sin afiliación ni respaldo oficial de bioMérieux.
+    VITEK<span class="reg">®</span> es una marca registrada de bioMérieux. El procesamiento es local en el navegador.
+  </footer>
 
 </div>
 
@@ -354,7 +483,7 @@
     return {
       minMz: parseFloat(document.getElementById('opt-min-mz').value) || 0,
       maxMz: parseFloat(document.getElementById('opt-max-mz').value) || Infinity,
-      noisePct: parseFloat(document.getElementById('opt-noise').value) || 0,
+      minSn: parseFloat(document.getElementById('opt-min-sn').value) || 0,
       maxPeaks: parseInt(document.getElementById('opt-max-peaks').value, 10) || 100,
       minSeparation: parseFloat(document.getElementById('opt-min-sep').value) || 0,
     };
@@ -524,7 +653,7 @@
 
     // Campos propietarios bioMérieux (BM) vistos como hijos directos de
     // <spectrum> en archivos reales de VITEK MS PRIME: se usan para
-    // reconstruir el nombre de Analyte que espera MicrobeNet (ver
+    // reconstruir el nombre de Analyte que espera la plataforma de destino (ver
     // buildAnalyteName más abajo).
     const sampleType = findCvValue(directCvParams, 'BM:1001034');
     const scopeMode = findCvValue(directCvParams, 'BM:1001083');
@@ -627,7 +756,7 @@
         qualityIndicator: parsed.qualityIndicator,
         warnings,
         peaks: [],
-        // Identificadores estables para el XML de MicrobeNet: se generan una
+        // Identificadores estables para el XML de destino: se generan una
         // sola vez acá, no cambian aunque se reprocesen los picos.
         mspInternId: makeUuid(),
         mspPeaklistUuid: makeUuid(),
@@ -655,31 +784,69 @@
     return accepted;
   }
 
+  // Estima la línea de base (mínimo local) y el ruido (desviación absoluta
+  // mediana, robusta) en una ventana alrededor de un índice del perfil.
+  // Necesario para calcular S/N por pico, ya que el perfil de VITEK tiene una
+  // línea de base alta y variable (un ruido global sería poco representativo).
+  function localBaselineNoise(intensity, idx, win) {
+    const lo = Math.max(0, idx - win), hi = Math.min(intensity.length - 1, idx + win);
+    let mn = Infinity;
+    const vals = [];
+    for (let i = lo; i <= hi; i++) { if (intensity[i] < mn) mn = intensity[i]; vals.push(intensity[i]); }
+    vals.sort((a, b) => a - b);
+    const med = vals[vals.length >> 1];
+    const devs = vals.map(v => Math.abs(v - med)).sort((a, b) => a - b);
+    const noise = (devs[devs.length >> 1] * 1.4826) || 1;
+    return { baseline: mn, noise };
+  }
+
+  // Ancho a media altura (FWHM) medido sobre el perfil y resolución = m/z / FWHM.
+  // La media altura se toma respecto de la línea de base local, no del cero, por
+  // el mismo motivo que arriba. Devuelve null si el pico toca el borde de los
+  // datos (no se puede medir el cruce).
+  function peakResolution(mz, intensity, idx, baseline) {
+    const peak = intensity[idx];
+    const half = baseline + (peak - baseline) / 2;
+    if (!(peak > half)) return { fwhm: null, resolution: null };
+    let l = idx; while (l > 0 && intensity[l] > half) l--;
+    let r = idx; while (r < intensity.length - 1 && intensity[r] > half) r++;
+    if (intensity[l] > half || intensity[r] > half) return { fwhm: null, resolution: null };
+    const interp = (a, b) => {
+      const ia = intensity[a], ib = intensity[b];
+      if (ia === ib) return mz[a];
+      return mz[a] + (half - ia) / (ib - ia) * (mz[b] - mz[a]);
+    };
+    const mzL = interp(l, l + 1), mzR = interp(r - 1, r);
+    const fwhm = mzR - mzL;
+    return { fwhm, resolution: fwhm > 0 ? mz[idx] / fwhm : null };
+  }
+
   function pickPeaksFromProfile(mz, intensity, opts) {
     const n = mz.length;
-    let maxIntensity = 0;
-    for (let i = 0; i < n; i++) if (intensity[i] > maxIntensity) maxIntensity = intensity[i];
-    const threshold = maxIntensity * (opts.noisePct / 100);
-
     let peaks = [];
     for (let i = 1; i < n - 1; i++) {
       if (mz[i] < opts.minMz || mz[i] > opts.maxMz) continue;
-      if (intensity[i] <= threshold) continue;
-      if (intensity[i] >= intensity[i - 1] && intensity[i] >= intensity[i + 1] && intensity[i] > intensity[i - 1]) {
-        peaks.push({ mz: mz[i], intensity: intensity[i] });
-      }
+      // máximo local
+      if (!(intensity[i] >= intensity[i - 1] && intensity[i] >= intensity[i + 1] && intensity[i] > intensity[i - 1])) continue;
+      const { baseline, noise } = localBaselineNoise(intensity, i, 100);
+      const sn = (intensity[i] - baseline) / noise;
+      if (sn < opts.minSn) continue;
+      const { fwhm, resolution } = peakResolution(mz, intensity, i, baseline);
+      peaks.push({ mz: mz[i], intensity: intensity[i], sn, fwhm, resolution });
     }
     peaks = enforceMinSeparation(peaks, opts.minSeparation);
     peaks.sort((a, b) => b.intensity - a.intensity);
     return peaks.slice(0, opts.maxPeaks).sort((a, b) => a.mz - b.mz);
   }
 
+  // Espectro centroidal: los picos ya vienen discretos, sin forma de pico, así
+  // que no se pueden recalcular S/N ni resolución desde el perfil (quedan null).
   function peaksFromCentroid(mz, intensity, opts) {
     let peaks = [];
     for (let i = 0; i < mz.length; i++) {
       if (mz[i] < opts.minMz || mz[i] > opts.maxMz) continue;
       if (intensity[i] <= 0) continue;
-      peaks.push({ mz: mz[i], intensity: intensity[i] });
+      peaks.push({ mz: mz[i], intensity: intensity[i], sn: null, fwhm: null, resolution: null });
     }
     peaks = enforceMinSeparation(peaks, opts.minSeparation);
     peaks.sort((a, b) => b.intensity - a.intensity);
@@ -695,7 +862,7 @@
   }
 
   // ---------------------------------------------------------------------
-  // Generación de salidas (XML MicrobeNet / CSV)
+  // Generación de salidas (XML de destino / CSV)
   // ---------------------------------------------------------------------
   function escapeXml(s) {
     return String(s == null ? '' : s).replace(/[<>&'"]/g, c => ({
@@ -718,7 +885,7 @@
   }
 
   // Formato "AAAA-MM-DDHH-mm-ss" (sin separador entre fecha y hora) visto en
-  // el nombre de Analyte de un archivo real aceptado por MicrobeNet.
+  // el nombre de Analyte de un archivo real aceptado por la plataforma de destino.
   function formatCompactTimestamp(date) {
     const p = n => String(n).padStart(2, '0');
     return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}${p(date.getHours())}-${p(date.getMinutes())}-${p(date.getSeconds())}`;
@@ -741,7 +908,7 @@
     return String(Math.round(mz * 1000) / 1000);
   }
 
-  // Confirmado contra DOS pipelines de terceros para MicrobeNet (además del
+  // Confirmado contra DOS pipelines de terceros (además del
   // archivo de referencia de VITEK MS PRIME): mismos 11 segmentos y mismo
   // orden, aunque el equipo de origen cambia la abreviatura del modelo
   // ("VMSPRIME" para VITEK MS PRIME, "VITEKMS" para VITEK MS Legacy).
@@ -751,7 +918,7 @@
     return MODEL_ABBREV[rawModel.trim().toUpperCase()] || rawModel.trim().toUpperCase().replace(/\s+/g, '');
   }
 
-  // Reconstruye el nombre de Analyte/externId que usa MicrobeNet, a partir
+  // Reconstruye el nombre de Analyte/externId que usa la plataforma de destino, a partir
   // del patrón observado en un archivo real aceptado:
   //   ES00116_DS234773051_A1_COL_VMSPRIME_IVD_pl-IVD_1.0.8_1_GOOD_KB3.3.0_2024-11-2210-17-59
   // Cada segmento sale de un cvParam propietario (BM) del .mzML, EXCEPTO la
@@ -811,9 +978,9 @@ ${peaksXml}
   }
 
   // Genera el archivo <MspMatchResult> completo del proyecto/lote, con un
-  // <Analyte> por muestra cargada. Es el archivo pensado para subir a
-  // MicrobeNet (a diferencia de un XML por muestra: el formato real agrupa
-  // todo un lote/lámina en un único archivo).
+  // <Analyte> por muestra cargada. Es el archivo pensado para subir a la
+  // plataforma de destino (a diferencia de un XML por muestra: el formato real
+  // agrupa todo un lote/lámina en un único archivo).
   function buildProjectXml(project, samples) {
     const analytesXml = samples.map(sample => buildAnalyteXml(sample, project)).join('\n');
     return `<?xml version="1.0" encoding="UTF-8"?>
@@ -827,8 +994,12 @@ ${analytesXml}
   }
 
   function buildCsv(sample) {
-    const lines = ['mz,intensity'];
-    for (const p of sample.peaks) lines.push(`${p.mz.toFixed(4)},${p.intensity.toFixed(2)}`);
+    const lines = ['mz,intensity,sn,resolution'];
+    for (const p of sample.peaks) {
+      const sn = p.sn != null ? p.sn.toFixed(2) : '';
+      const res = p.resolution != null ? Math.round(p.resolution) : '';
+      lines.push(`${p.mz.toFixed(4)},${p.intensity.toFixed(2)},${sn},${res}`);
+    }
     return lines.join('\n');
   }
 
@@ -1020,7 +1191,7 @@ ${analytesXml}
     const warnBadges = sample.warnings.map(w => `<span class="badge warn">${escapeXml(w)}</span>`).join('');
     const typeBadge = sample.isCentroid ? 'centroidal' : (sample.isProfile ? 'perfil' : 'tipo desconocido');
     const qualityBadge = sample.qualityIndicator
-      ? `<span class="badge${sample.qualityIndicator.toUpperCase() === 'GOOD' ? '' : ' warn'}">spot: ${escapeXml(sample.qualityIndicator)}</span>`
+      ? `<span class="badge${sample.qualityIndicator.toUpperCase() === 'GOOD' ? ' good' : ' warn'}">spot: ${escapeXml(sample.qualityIndicator)}</span>`
       : '';
     const sampleTypeBadge = sample.sampleType ? `<span class="badge">${escapeXml(sample.sampleType)}</span>` : '';
 
@@ -1058,7 +1229,7 @@ ${analytesXml}
         Posición: ${escapeXml(sample.targetPosition || 'sin dato')}
       </div>
 
-      <div class="spectrum-title">Espectro (m/z vs. intensidad relativa) · pasá el mouse para inspeccionar</div>
+      <div class="spectrum-title">Espectro (m/z vs. intensidad) · pasá el mouse por un pico para ver su S/N y resolución</div>
       <div class="spectrum-wrap">
         <canvas class="spectrum"></canvas>
         <div class="spectrum-tooltip"></div>
@@ -1066,7 +1237,7 @@ ${analytesXml}
 
       <div class="peak-table-wrap">
         <table class="peaks">
-          <thead><tr><th>#</th><th>m/z</th><th>Intensidad</th></tr></thead>
+          <thead><tr><th>#</th><th>m/z</th><th>Intensidad</th><th>S/N</th><th>Resolución</th></tr></thead>
           <tbody class="peak-tbody"></tbody>
         </table>
       </div>
@@ -1098,10 +1269,29 @@ ${analytesXml}
       const opts = getOpts();
       const minMz = Math.max(opts.minMz, sample.mz[0]);
       const maxMz = Math.min(opts.maxMz, sample.mz[sample.mz.length - 1]);
-      const hoverMz = minMz + ((e.clientX - rect.left) / rect.width) * (maxMz - minMz);
-      const info = drawSpectrum(canvasEl, sample, opts, hoverMz);
+      const hoverX = e.clientX - rect.left;
+      const hoverMz = minMz + (hoverX / rect.width) * (maxMz - minMz);
+      const xOfMz = m => ((m - minMz) / (maxMz - minMz || 1)) * rect.width;
+
+      // Si hay un pico detectado cerca (en píxeles), engancharse a él para
+      // mostrar su S/N y resolución; si no, mostrar el punto del perfil.
+      let snapPeak = null, bestDist = 14;
+      for (const p of sample.peaks) {
+        const d = Math.abs(xOfMz(p.mz) - hoverX);
+        if (d < bestDist) { bestDist = d; snapPeak = p; }
+      }
+
+      const markMz = snapPeak ? snapPeak.mz : hoverMz;
+      const info = drawSpectrum(canvasEl, sample, opts, markMz);
       if (!info) { tooltipEl.style.display = 'none'; return; }
-      tooltipEl.textContent = `m/z ${info.mz.toFixed(2)} · intensidad ${info.intensity.toFixed(1)}`;
+
+      if (snapPeak) {
+        const sn = snapPeak.sn != null ? `S/N ${snapPeak.sn.toFixed(1)}` : 'S/N —';
+        const res = snapPeak.resolution != null ? `R ${Math.round(snapPeak.resolution)}` : 'R —';
+        tooltipEl.innerHTML = `<b>m/z ${snapPeak.mz.toFixed(2)}</b> · ${sn} · ${res}`;
+      } else {
+        tooltipEl.textContent = `m/z ${info.mz.toFixed(2)} · intensidad ${info.intensity.toFixed(0)}`;
+      }
       tooltipEl.style.display = 'block';
       const tooltipW = tooltipEl.offsetWidth;
       tooltipEl.style.left = Math.min(Math.max(info.x, tooltipW / 2 + 4), rect.width - tooltipW / 2 - 4) + 'px';
@@ -1123,7 +1313,11 @@ ${analytesXml}
 
     const tbody = card.querySelector('.peak-tbody');
     tbody.innerHTML = sample.peaks
-      .map((p, i) => `<tr><td>${i + 1}</td><td>${p.mz.toFixed(4)}</td><td>${p.intensity.toFixed(1)}</td></tr>`)
+      .map((p, i) => {
+        const sn = p.sn != null ? p.sn.toFixed(1) : '—';
+        const res = p.resolution != null ? Math.round(p.resolution) : '—';
+        return `<tr><td>${i + 1}</td><td>${p.mz.toFixed(4)}</td><td>${p.intensity.toFixed(0)}</td><td>${sn}</td><td>${res}</td></tr>`;
+      })
       .join('');
 
     drawSpectrum(card.querySelector('canvas.spectrum'), sample, opts);
@@ -1149,20 +1343,20 @@ ${analytesXml}
     for (const file of files) {
       try {
         const samples = await processFile(file);
-        // Ante el primer archivo cargado, si el instrumento informa su
-        // propia ventana de escaneo (scanWindow), usarla para pre-cargar el
-        // rango de m/z en lugar del valor por defecto genérico.
+        // Ante el primer archivo cargado, si el instrumento informa su propia
+        // ventana de escaneo (scanWindow), usarla para pre-cargar el m/z máximo.
+        // El m/z mínimo se deja fijo en 2000 (valor por defecto pedido), que es
+        // el rango bajo típico de trabajo para identificación.
         if (!scanWindowAutoFilled && samples.length && samples[0].scanWindow) {
           scanWindowAutoFilled = true;
-          document.getElementById('opt-min-mz').value = Math.floor(samples[0].scanWindow.min);
           document.getElementById('opt-max-mz').value = Math.ceil(samples[0].scanWindow.max);
         }
-        // Autocompletar "ID de instrumento" del proyecto con el modelo +
+        // Autocompletar "ID de instrumento" del proyecto con el modelo y el
         // nro. de serie del primer archivo cargado (se puede editar después).
         if (!instrumentIdAutoFilled && samples.length && (samples[0].instrumentModel || samples[0].instrumentSerial)) {
           instrumentIdAutoFilled = true;
           const projInstrumentEl = document.getElementById('proj-instrument');
-          projInstrumentEl.value = [samples[0].instrumentModel, samples[0].instrumentSerial].filter(Boolean).join(' ');
+          projInstrumentEl.value = [samples[0].instrumentModel, samples[0].instrumentSerial].filter(Boolean).join(' - ');
         }
         for (const sample of samples) {
           state.samples.push(sample);
@@ -1249,7 +1443,7 @@ ${analytesXml}
     }
   });
 
-  document.getElementById('proj-name').value = 'Corrida ' + formatSpanishDate(new Date());
+  document.getElementById('proj-name').value = 'Proyecto ' + formatSpanishDate(new Date());
 
   updateEmptyState();
 })();

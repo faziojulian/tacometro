@@ -1,33 +1,41 @@
-# Convertidor de archivos bioMérieux
+# Convertidor de espectros VITEK® MS
 
-Convierte archivos `.mzML` de corridas VITEK MS PRIME (bioMérieux) a un XML pensado para
-importar en MicrobeNet (CDC), y a una lista de picos en CSV.
+Convierte archivos `.mzML` de corridas **VITEK® MS** y **VITEK MS PRIME** a un archivo
+`.XML` de proyecto (formato `MspMatchResult`) y a listas de picos en CSV, con vista previa
+del espectro. Todo corre en el navegador: los archivos nunca se suben a ningún servidor.
+
+> Proyecto independiente y de código abierto, **sin afiliación ni respaldo oficial de
+> bioMérieux**. VITEK® es una marca registrada de bioMérieux.
 
 > Nota: el nombre del repositorio en GitHub todavía es `tacometro`. GitHub no permite
 > renombrarlo por API/token de esta integración, así que hay que hacerlo a mano desde
-> **Settings → General → Repository name** (sugerencia de slug: `convertidor-biomerieux`).
+> **Settings → General → Repository name**.
 
-## `index.html` — conversor mzML → XML MicrobeNet
+## `index.html` — conversor mzML → XML
 
 `index.html` es la página principal (se sirve en la raíz de GitHub Pages). Convierte uno o
-varios archivos `.mzML` de VITEK MS PRIME en:
+varios archivos `.mzML` en:
 
-- una lista de picos (m/z + intensidad) por muestra, extraída y verificable con el estándar abierto mzML (HUPO-PSI), exportable en CSV;
-- un único archivo `.xml` de **proyecto** (`<MspMatchResult>`, con un `<Analyte>` por muestra) pensado para importar en MicrobeNet (CDC).
+- una lista de picos por muestra (m/z, intensidad, y S/N + resolución estimadas desde el
+  perfil), con vista previa interactiva del espectro; exportable en CSV;
+- un único archivo `.xml` de **proyecto** (`<MspMatchResult>`, con un `<Analyte>` por
+  muestra) con las intensidades normalizadas 0–1.
 
 **Esquema del XML:** la estructura (`MspMatchResult` > `ProjectInfo` + `Analytes` >
-`Analyte` > `Peaklist` > `Peaks` > `Peak`, con sus atributos e intensidades normalizadas
-0–1) se tomó de un archivo `.xml` real ya aceptado por MicrobeNet, no es una suposición.
-Quedan dos puntos que sí son best-effort y conviene revisar:
+`Analyte` > `Peaklist` > `Peaks` > `Peak`) se tomó de archivos `.xml` reales, no es una
+suposición; se corroboró de forma independiente contra tres fuentes. Puntos que son
+best-effort y conviene revisar:
 
 - el nombre de cada `Analyte` (`name`/`externId`) se reconstruye combinando campos del
-  `.mzML` según el patrón observado en ese único ejemplo; es editable por muestra
-  ("Nombre MSP") por si no generaliza a otro tipo de muestra/protocolo;
-- la versión de KB del Biotyper no viaja en el `.mzML` de VITEK, hay que completarla a
-  mano en "Datos del proyecto" si se conoce.
+  `.mzML` según el patrón observado; es editable por muestra ("Nombre MSP") por si no
+  generaliza a otro tipo de muestra/protocolo;
+- la versión de KB no viaja en el `.mzML` de VITEK, hay que completarla a mano en "Datos
+  del proyecto" si se conoce;
+- S/N y resolución son estimaciones calculadas desde el perfil exportado (línea de base y
+  ruido locales, FWHM), no los valores exactos del software del equipo.
 
-Antes de usarlo en producción, conviene subir un lote de prueba a MicrobeNet y confirmar
-que lo acepta e identifica como se espera.
+Antes de usarlo en producción, conviene procesar un lote de prueba y verificar que el
+archivo se acepta e identifica como se espera.
 
 Todo el procesamiento ocurre en el navegador (sin subir archivos a ningún servidor), usando
 [fflate](https://github.com/101arrowz/fflate) (vendorizado en `vendor/`) para descomprimir
@@ -35,5 +43,5 @@ los arrays binarios `zlib`/`gzip` del mzML.
 
 ## `extras/tacometro.html`
 
-Herramienta anterior del repo (un velocímetro/gauge genérico), sin relación con
-bioMérieux. Se dejó archivada acá por si todavía se usa en algún lado.
+Herramienta anterior del repo (un velocímetro/gauge genérico), sin relación con este
+conversor. Se dejó archivada acá por si todavía se usa en algún lado.
