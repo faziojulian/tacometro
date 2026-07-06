@@ -45,24 +45,6 @@
     box-shadow: 0 6px 30px rgba(0,0,0,0.4);
   }
 
-  .warning {
-    background: #3a2a12;
-    border: 1.5px solid #c78a1f;
-    color: #ffd98e;
-    border-radius: 12px;
-    padding: 16px 18px;
-    font-size: 0.85rem;
-    line-height: 1.55;
-  }
-  .warning b { color: #ffe6ad; }
-  .warning summary {
-    cursor: pointer;
-    font-weight: 600;
-    color: #ffe6ad;
-    margin-bottom: 6px;
-  }
-  .warning ul { margin: 8px 0 0 18px; }
-
   #dropzone {
     border: 2px dashed #334a6b;
     border-radius: 14px;
@@ -183,12 +165,39 @@
   }
   .fields input:focus { border-color: #e94560; }
 
+  .spectrum-title {
+    font-size: 0.72rem;
+    color: #7d8bb0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .spectrum-wrap {
+    position: relative;
+  }
+
   canvas.spectrum {
     width: 100%;
-    height: 140px;
+    height: 200px;
     background: #0f1730;
     border-radius: 8px;
     display: block;
+    cursor: crosshair;
+  }
+
+  .spectrum-tooltip {
+    position: absolute;
+    top: 8px;
+    padding: 4px 9px;
+    border-radius: 6px;
+    background: #050a16;
+    border: 1px solid #263353;
+    color: #eee;
+    font-size: 0.72rem;
+    white-space: nowrap;
+    pointer-events: none;
+    transform: translateX(-50%);
+    display: none;
   }
 
   .peak-table-wrap {
@@ -230,39 +239,6 @@
       <small>Convierte corridas de VITEK MS PRIME (.mzML) en una lista de picos y un XML para importar en MicrobeNet</small>
     </h1>
   </div>
-
-  <details class="warning" open>
-    <summary>⚠ Leer antes de usar: esquema confirmado por tres fuentes independientes, con salvedades</summary>
-    <div>
-      La estructura del XML (<code>MspMatchResult</code> &gt; <code>ProjectInfo</code> +
-      <code>Analytes</code> &gt; <code>Analyte</code> &gt; <code>Peaklist</code> &gt; <code>Peaks</code> &gt;
-      <code>Peak</code>, con sus atributos, intensidades normalizadas 0–1 y el patrón de 11 segmentos del
-      nombre de cada Analyte) coincide en tres archivos reales vistos de forma independiente: uno generado
-      directamente por VITEK MS PRIME/bioMérieux, y otros dos de pipelines de terceros para VITEK MS Legacy
-      y MALDI Biotyper sirius. No es una suposición. Aun así quedan puntos que varían según el
-      laboratorio/pipeline de origen y conviene revisar:
-      <ul>
-        <li>El <b>nombre de cada Analyte</b> (campos <code>name</code>/<code>externId</code>) se reconstruye
-          combinando datos del .mzML (instrumento, código de lámina, posición, tipo de muestra, modo, método
-          de adquisición, calidad del spot). El formato exacto de esos dos últimos campos, y el separador
-          usado, cambia levemente entre laboratorios; por eso el campo "Nombre MSP" de cada muestra es
-          editable a mano.</li>
-        <li>La <b>versión de KB</b> (base de conocimiento del Biotyper) no viaja en el .mzML de VITEK: hay
-          que completarla manualmente en "Datos del proyecto" si se conoce.</li>
-        <li>El <b>"Tipo de proyecto"</b> también varía según el pipeline ("Espectros IVD", "Espectros Vitek",
-          "Espectros Bruker" son todos valores reales vistos); es un campo editable, no una constante fija.</li>
-        <li>El significado exacto de <code>intensityScale</code> en <code>Peaklist</code> no se pudo
-          confirmar de forma independiente; se calcula como 1/intensidad máxima para que sea coherente con
-          los picos normalizados (0 a 1) que sí se exportan siguiendo el mismo criterio de los archivos de
-          referencia.</li>
-        <li>La extracción de picos (m/z + intensidad) desde el .mzML es confiable de por sí: se basa en el
-          estándar abierto mzML (HUPO-PSI). El <b>CSV de picos</b> exporta esos valores crudos (sin
-          normalizar) como referencia adicional.</li>
-      </ul>
-      Antes de usar esto en producción, subí un lote de prueba a MicrobeNet y confirmá que lo acepta e
-      identifica como se espera.
-    </div>
-  </details>
 
   <div class="panel">
     <div id="dropzone">
@@ -874,15 +850,47 @@ ${analytesXml}
   // ---------------------------------------------------------------------
   // Dibujo del espectro (canvas, solo para verificación visual)
   // ---------------------------------------------------------------------
-  function drawSpectrum(canvas, sample, opts) {
+  // Índice del punto de mz más cercano a `target` (mz se asume ascendente).
+  function nearestIndex(sortedArr, target) {
+    if (!sortedArr || sortedArr.length === 0) return -1;
+    let lo = 0, hi = sortedArr.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (sortedArr[mid] < target) lo = mid + 1; else hi = mid;
+    }
+    if (lo > 0 && Math.abs(sortedArr[lo - 1] - target) <= Math.abs(sortedArr[lo] - target)) return lo - 1;
+    return lo;
+  }
+
+  // Valores de tick "redondos" (1/2/5 × potencia de 10) para el eje de m/z.
+  function niceTicks(min, max, count) {
+    const range = max - min || 1;
+    const rawStep = range / count;
+    const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+    const norm = rawStep / mag;
+    const step = norm < 1.5 ? mag : norm < 3 ? 2 * mag : norm < 7 ? 5 * mag : 10 * mag;
+    const ticks = [];
+    for (let t = Math.ceil(min / step) * step; t <= max + 1e-9; t += step) ticks.push(t);
+    return ticks;
+  }
+
+  // Dibuja el espectro (m/z vs. intensidad) con ejes de m/z y, si se pasa
+  // `hoverMz`, una línea de referencia + punto resaltado en ese m/z (para el
+  // tooltip interactivo). Devuelve el punto resaltado, o null si no hay hover.
+  function drawSpectrum(canvas, sample, opts, hoverMz) {
     const dpr = window.devicePixelRatio || 1;
     const cssW = canvas.clientWidth || 600;
-    const cssH = canvas.clientHeight || 140;
-    canvas.width = cssW * dpr;
-    canvas.height = cssH * dpr;
+    const cssH = canvas.clientHeight || 200;
+    const neededW = Math.round(cssW * dpr), neededH = Math.round(cssH * dpr);
+    if (canvas.width !== neededW || canvas.height !== neededH) {
+      canvas.width = neededW;
+      canvas.height = neededH;
+    }
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const W = cssW, H = cssH;
+    const axisH = 16;
+    const plotH = H - axisH;
 
     ctx.clearRect(0, 0, W, H);
 
@@ -891,7 +899,7 @@ ${analytesXml}
       ctx.fillStyle = '#556';
       ctx.font = '12px Segoe UI, sans-serif';
       ctx.fillText('Sin datos de espectro para graficar', 10, H / 2);
-      return;
+      return null;
     }
 
     const minMz = Math.max(opts.minMz, mz[0]);
@@ -904,10 +912,37 @@ ${analytesXml}
     if (maxI <= 0) maxI = 1;
 
     const xOf = m => ((m - minMz) / (maxMz - minMz || 1)) * W;
-    const yOf = v => H - (v / maxI) * (H - 10) - 5;
+    const yOf = v => plotH - (v / maxI) * (plotH - 10) - 5;
 
-    ctx.strokeStyle = '#5ec8f8';
-    ctx.lineWidth = 1;
+    // Grilla + etiquetas de m/z (recesivas, solo de referencia).
+    ctx.font = '10px Segoe UI, sans-serif';
+    ctx.textBaseline = 'top';
+    for (const t of niceTicks(minMz, maxMz, 5)) {
+      const x = xOf(t);
+      ctx.strokeStyle = '#1e2846';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, plotH);
+      ctx.stroke();
+
+      const label = String(Math.round(t));
+      const labelW = ctx.measureText(label).width;
+      const lx = Math.min(Math.max(x, labelW / 2 + 2), W - labelW / 2 - 2);
+      ctx.fillStyle = '#5c6a8c';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, lx, plotH + 3);
+    }
+
+    ctx.strokeStyle = '#263353';
+    ctx.beginPath();
+    ctx.moveTo(0, plotH);
+    ctx.lineTo(W, plotH);
+    ctx.stroke();
+
+    // Trazo del espectro.
+    ctx.strokeStyle = '#2f9bd6';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
     let started = false;
     for (let i = 0; i < mz.length; i++) {
@@ -917,13 +952,33 @@ ${analytesXml}
     }
     ctx.stroke();
 
+    // Picos detectados.
     ctx.fillStyle = '#e94560';
     for (const p of sample.peaks) {
       const x = xOf(p.mz), y = yOf(p.intensity);
       ctx.beginPath();
-      ctx.arc(x, y, 2.2, 0, Math.PI * 2);
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    if (hoverMz == null) return null;
+    const idx = nearestIndex(mz, Math.min(Math.max(hoverMz, minMz), maxMz));
+    if (idx < 0) return null;
+    const x = xOf(mz[idx]), y = yOf(intensity[idx]);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, plotH);
+    ctx.stroke();
+
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    return { mz: mz[idx], intensity: intensity[idx], x };
   }
 
   // ---------------------------------------------------------------------
@@ -1003,7 +1058,11 @@ ${analytesXml}
         Posición: ${escapeXml(sample.targetPosition || 'sin dato')}
       </div>
 
-      <canvas class="spectrum"></canvas>
+      <div class="spectrum-title">Espectro (m/z vs. intensidad relativa) · pasá el mouse para inspeccionar</div>
+      <div class="spectrum-wrap">
+        <canvas class="spectrum"></canvas>
+        <div class="spectrum-tooltip"></div>
+      </div>
 
       <div class="peak-table-wrap">
         <table class="peaks">
@@ -1029,6 +1088,27 @@ ${analytesXml}
     });
     card.querySelector('.btn-dl-csv').addEventListener('click', () => {
       triggerDownload(new Blob([buildCsv(sample)], { type: 'text/csv' }), sanitizeFilename(sample.sampleId) + '_picos.csv');
+    });
+
+    const canvasEl = card.querySelector('canvas.spectrum');
+    const tooltipEl = card.querySelector('.spectrum-tooltip');
+    canvasEl.addEventListener('mousemove', e => {
+      if (!sample.mz || sample.mz.length === 0) return;
+      const rect = canvasEl.getBoundingClientRect();
+      const opts = getOpts();
+      const minMz = Math.max(opts.minMz, sample.mz[0]);
+      const maxMz = Math.min(opts.maxMz, sample.mz[sample.mz.length - 1]);
+      const hoverMz = minMz + ((e.clientX - rect.left) / rect.width) * (maxMz - minMz);
+      const info = drawSpectrum(canvasEl, sample, opts, hoverMz);
+      if (!info) { tooltipEl.style.display = 'none'; return; }
+      tooltipEl.textContent = `m/z ${info.mz.toFixed(2)} · intensidad ${info.intensity.toFixed(1)}`;
+      tooltipEl.style.display = 'block';
+      const tooltipW = tooltipEl.offsetWidth;
+      tooltipEl.style.left = Math.min(Math.max(info.x, tooltipW / 2 + 4), rect.width - tooltipW / 2 - 4) + 'px';
+    });
+    canvasEl.addEventListener('mouseleave', () => {
+      tooltipEl.style.display = 'none';
+      drawSpectrum(canvasEl, sample, getOpts(), null);
     });
 
     sample._card = card;
