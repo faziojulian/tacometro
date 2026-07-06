@@ -344,26 +344,19 @@
 
   .disclaimer {
     display: flex;
-    gap: 12px;
-    align-items: flex-start;
+    gap: 10px;
+    align-items: center;
     background: #1c1608;
     border: 1px solid #4a3a12;
     border-left: 3px solid var(--amber);
-    border-radius: 12px;
-    padding: 14px 16px;
-    font-size: 0.8rem;
-    line-height: 1.55;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 0.78rem;
+    line-height: 1.45;
     color: #d6c9ad;
   }
-  .disclaimer svg { flex: 0 0 auto; color: var(--amber); margin-top: 1px; }
+  .disclaimer svg { flex: 0 0 auto; color: var(--amber); }
   .disclaimer b { color: #f3e6c8; }
-  .disclaimer .title {
-    display: block;
-    font-weight: 700;
-    color: #f3e6c8;
-    margin-bottom: 3px;
-    letter-spacing: 0.02em;
-  }
 </style>
 </head>
 <body>
@@ -413,15 +406,10 @@
   </header>
 
   <div class="disclaimer">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
     <div>
-      <span class="title">Aviso de responsabilidad</span>
-      Esta es una herramienta de <b>conversión de formato de archivos</b>: no es un dispositivo médico ni de
-      diagnóstico, y no genera identificaciones ni resultados clínicos. El uso de la herramienta y la
-      <b>validación de los archivos generados son responsabilidad exclusiva de cada usuario</b>, que debe
-      verificar los resultados antes de cualquier uso diagnóstico, informable o regulatorio. Se ofrece
-      "tal cual", sin garantías de ningún tipo y sin responsabilidad de los autores por su uso. Proyecto
-      independiente, sin afiliación ni respaldo oficial de bioMérieux.
+      <b>Aviso:</b> herramienta de conversión de formato, no un dispositivo de diagnóstico. Los resultados
+      pueden contener errores; su revisión y uso son responsabilidad de cada usuario.
     </div>
   </div>
 
