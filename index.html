@@ -357,6 +357,61 @@
   }
   .disclaimer svg { flex: 0 0 auto; color: var(--amber); }
   .disclaimer b { color: #f3e6c8; }
+
+  .sample-card { position: relative; }
+  .sample-head { padding-right: 32px; }
+  .card-remove {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--ink-3);
+    font-size: 1.05rem;
+    line-height: 1;
+  }
+  .card-remove:hover { color: #f3a9b4; border-color: var(--danger-brd); background: var(--danger-bg); }
+
+  .sample-warning {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 0.76rem;
+    color: var(--warn-fg);
+    background: var(--warn-bg);
+    border-radius: 8px;
+    padding: 7px 11px;
+  }
+  .sample-warning svg { flex: 0 0 auto; }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%) translateY(12px);
+    background: #04101a;
+    border: 1px solid var(--accent-deep);
+    color: var(--ink);
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s, transform .2s;
+    z-index: 50;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  @media (prefers-reduced-motion: reduce) {
+    .toast { transition: opacity .2s; transform: translateX(-50%); }
+  }
 </style>
 </head>
 <body>
@@ -1067,6 +1122,44 @@ ${analytesXml}
     return (String(s || 'muestra').replace(/[^a-zA-Z0-9_.-]+/g, '_').slice(0, 80)) || 'muestra';
   }
 
+  // Detecta el "rótulo" de la muestra (IVD / RUO / AVG) buscando el token como
+  // palabra en el modo de scope del .mzML y en los nombres del archivo/muestra
+  // (donde "_" cuenta como separador). Para identificación se recomienda IVD;
+  // RUO y AVG (espectro promediado) generan advertencia.
+  function hasToken(hay, tok) {
+    return new RegExp('(^|[^A-Z0-9])' + tok + '([^A-Z0-9]|$)').test(hay);
+  }
+  function detectSampleLabels(sample) {
+    const hay = [sample.scopeMode, sample.sourceFileName, sample.spectrumId, sample.sampleId, sample.mspName]
+      .filter(Boolean).join(' ').toUpperCase();
+    const scope = (sample.scopeMode || '').toUpperCase();
+    const labels = [];
+    let warn = false;
+    if (scope === 'IVD' || (hasToken(hay, 'IVD') && !hasToken(hay, 'RUO'))) {
+      labels.push({ text: 'IVD', level: 'good' });
+    } else if (scope === 'RUO' || hasToken(hay, 'RUO')) {
+      labels.push({ text: 'RUO', level: 'warn' });
+      warn = true;
+    } else if (scope) {
+      labels.push({ text: scope, level: 'neutral' });
+    }
+    if (hasToken(hay, 'AVG')) {
+      labels.push({ text: 'AVG (promediado)', level: 'warn' });
+      warn = true;
+    }
+    return { labels, warn };
+  }
+
+  // Aviso breve tipo "toast" (confirmaciones de descarga).
+  function showToast(msg) {
+    let t = document.getElementById('toast');
+    if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
+    t.textContent = msg;
+    requestAnimationFrame(() => t.classList.add('show'));
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
   function triggerDownload(blob, filename) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -1255,18 +1348,32 @@ ${analytesXml}
       : '';
     const sampleTypeBadge = sample.sampleType ? `<span class="badge">${escapeXml(sample.sampleType)}</span>` : '';
 
+    const { labels, warn } = detectSampleLabels(sample);
+    const labelBadges = labels.map(l => {
+      const cls = l.level === 'good' ? ' good' : l.level === 'warn' ? ' warn' : '';
+      return `<span class="badge${cls}">${escapeXml(l.text)}</span>`;
+    }).join('');
+    const warningRow = warn ? `
+      <div class="sample-warning">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        <span>Para la identificación se recomienda usar archivos <b>IVD</b>.</span>
+      </div>` : '';
+
     card.innerHTML = `
+      <button class="card-remove" title="Quitar muestra" aria-label="Quitar muestra">✕</button>
       <div class="sample-head">
         <div class="file-name">${escapeXml(sample.sourceFileName)} · espectro ${escapeXml(sample.spectrumIndex ?? '')} (${escapeXml(sample.spectrumId)})</div>
         <div class="badges">
           <span class="badge">${escapeXml(typeBadge)}</span>
           <span class="badge">MS${escapeXml(sample.msLevel || '?')}</span>
           <span class="badge peak-count-badge">0 picos</span>
+          ${labelBadges}
           ${sampleTypeBadge}
           ${qualityBadge}
           ${warnBadges}
         </div>
       </div>
+      ${warningRow}
 
       <div class="fields">
         <div>
@@ -1319,6 +1426,12 @@ ${analytesXml}
     });
     card.querySelector('.btn-dl-csv').addEventListener('click', () => {
       triggerDownload(new Blob([buildCsv(sample)], { type: 'text/csv' }), sanitizeFilename(sample.sampleId) + '_picos.csv');
+    });
+    card.querySelector('.card-remove').addEventListener('click', () => {
+      const i = state.samples.indexOf(sample);
+      if (i >= 0) state.samples.splice(i, 1);
+      card.remove();
+      updateEmptyState();
     });
 
     const canvasEl = card.querySelector('canvas.spectrum');
@@ -1463,6 +1576,7 @@ ${analytesXml}
 
   // Descargar los CSV de picos de todas las muestras en un .zip
   btnZip.addEventListener('click', () => {
+    if (state.samples.length === 0) return;
     const files = {};
     const used = new Set();
     for (const sample of state.samples) {
@@ -1475,6 +1589,7 @@ ${analytesXml}
     }
     const zipped = fflate.zipSync(files);
     triggerDownload(new Blob([zipped], { type: 'application/zip' }), 'picos_muestras.zip');
+    showToast(`CSVs descargados · ${state.samples.length} muestra${state.samples.length === 1 ? '' : 's'}`);
   });
 
   // Descargar el XML del proyecto completo (todas las muestras cargadas en un solo <MspMatchResult>)
@@ -1483,6 +1598,7 @@ ${analytesXml}
     const project = getProjectInfo();
     const xml = buildProjectXml(project, state.samples);
     triggerDownload(new Blob([xml], { type: 'application/xml' }), sanitizeFilename(project.name || 'proyecto') + '.xml');
+    showToast(`XML generado · ${state.samples.length} muestra${state.samples.length === 1 ? '' : 's'}`);
   });
 
   // Si se completa la versión de KB después de cargar archivos, recalcular
@@ -1499,7 +1615,34 @@ ${analytesXml}
     }
   });
 
+  // Recordar entre sesiones los datos de laboratorio y los ajustes de
+  // detección (no se guardan datos por corrida como nombre, comentario o
+  // muestras). Se usa localStorage; si está bloqueado, se ignora en silencio.
+  const PERSIST_FIELDS = ['proj-type', 'proj-creator', 'proj-kb', 'opt-min-mz', 'opt-min-sn', 'opt-max-peaks', 'opt-min-sep'];
+  const STORE_KEY = 'vitek-conv-prefs-v1';
+  function savePrefs() {
+    try {
+      const data = {};
+      for (const id of PERSIST_FIELDS) { const el = document.getElementById(id); if (el) data[id] = el.value; }
+      localStorage.setItem(STORE_KEY, JSON.stringify(data));
+    } catch (e) { /* localStorage no disponible */ }
+  }
+  function loadPrefs() {
+    try {
+      const data = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+      for (const id of PERSIST_FIELDS) {
+        const el = document.getElementById(id);
+        if (el && data[id] != null && data[id] !== '') el.value = data[id];
+      }
+    } catch (e) { /* localStorage no disponible */ }
+  }
+  PERSIST_FIELDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', savePrefs);
+  });
+
   document.getElementById('proj-name').value = 'Proyecto ' + formatSpanishDate(new Date());
+  loadPrefs();
 
   updateEmptyState();
 })();
