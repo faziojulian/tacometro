@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Convertidor de espectros VITEK® MS · mzML → XML</title>
 <style>
-  /* ---------- Sistema de temas: claro (por defecto) + oscuro ---------- */
+  /* ---------- Tema claro (fijo) ---------- */
   :root {
+    color-scheme: light;
     /* neutros con leve sesgo frío/cian, elegidos (no gris puro) */
     --bg:          #e9eff5;
     --surface:     #ffffff;
@@ -56,56 +57,10 @@
     --hero-eyebrow: var(--accent);
   }
 
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg:          #0a1219;
-      --surface:     #101c26;
-      --surface-2:   #0c161e;
-      --chart-bg:    #0a141c;
-      --border:      #223240;
-      --border-soft: #1a2732;
-      --ink:         #e7eff6;
-      --ink-2:       #9db2c2;
-      --ink-3:       #647787;
-      --accent:      #38bdf8;
-      --accent-2:    #0ea5e9;
-      --accent-deep: #0b6ea3;
-      --accent-contrast: #04141d;
-      --accent-soft: rgba(56,189,248,0.14);
-      --amber:       #f5a524;
-      --shadow:      0 6px 30px rgba(0,0,0,0.35);
-      --glow-1:      rgba(56,189,248,0.14);
-      --glow-2:      rgba(245,165,36,0.07);
-      --code-bg:     #0b1a24;
-      --code-fg:     #8fe3ff;
-      --badge-bg:    #17303d;
-      --badge-fg:    #93cfe8;
-      --btn-sec-bg:  #14242f;
-      --btn-sec-fg:  #a7d8ef;
-      --btn-sec-brd: #2a3f4e;
-      --dz-border:   #2c4150;
-      --dz-hover:    #0c161e;
-      --dz-drag:     #10222e;
-      --good-bg:     #0f2f28;
-      --good-fg:     #4bd6a0;
-      --warn-bg:     #3a2c12;
-      --warn-fg:     #f0c274;
-      --danger-brd:  #7a3340;
-      --danger-bg:   #23141a;
-      --note-bg:     #10222e;
-      --note-brd:    #234455;
-      --note-fg:     #bcd0dd;
-      --disc-bg:     #1c1608;
-      --disc-brd:    #4a3a12;
-      --disc-fg:     #d6c9ad;
-      --disc-strong: #f3e6c8;
-      --hero-grad:   linear-gradient(135deg, #12242f 0%, #0e1a23 62%, #101c26 100%);
-      --hero-title:  #ffffff;
-    }
-  }
-
-  /* Interruptor manual de tema (data-theme) — gana sobre el media query */
+  /* Tema oscuro — se activa solo por selección manual (botón), no automática.
+     Arranca siempre en claro; el usuario elige y su preferencia se recuerda. */
   :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg:#0a1219; --surface:#101c26; --surface-2:#0c161e; --chart-bg:#0a141c;
     --border:#223240; --border-soft:#1a2732; --ink:#e7eff6; --ink-2:#9db2c2; --ink-3:#647787;
     --accent:#38bdf8; --accent-2:#0ea5e9; --accent-deep:#0b6ea3; --accent-contrast:#04141d; --accent-soft:rgba(56,189,248,0.14);
@@ -143,6 +98,7 @@
 
   /* ---------- Hero ---------- */
   .hero {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 28px;
@@ -152,6 +108,29 @@
     padding: 32px 34px;
     box-shadow: var(--shadow);
   }
+
+  .theme-toggle {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--ink-2);
+    cursor: pointer;
+    transition: color .15s, border-color .15s, background .15s;
+    z-index: 2;
+  }
+  .theme-toggle:hover { color: var(--accent); border-color: var(--accent); }
+  .theme-toggle .icon-moon { display: none; }
+  :root[data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+  :root[data-theme="dark"] .theme-toggle .icon-moon { display: block; }
   .hero-text { flex: 1 1 auto; }
   .hero-eyebrow {
     font-size: 0.72rem;
@@ -512,6 +491,10 @@
 <div class="wrap">
 
   <header class="hero">
+    <button id="theme-toggle" class="theme-toggle" type="button" title="Cambiar tema" aria-label="Cambiar entre tema claro y oscuro">
+      <svg class="icon-sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+      <svg class="icon-moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+    </button>
     <div class="hero-text">
       <div class="hero-eyebrow">Espectrometría de masas · MALDI-TOF</div>
       <h1>Convertidor de espectros VITEK<span class="reg">®</span> MS</h1>
@@ -1733,6 +1716,22 @@ ${analytesXml}
   PERSIST_FIELDS.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', savePrefs);
+  });
+
+  // Tema seleccionable: arranca en claro; el usuario elige con el botón y su
+  // preferencia se recuerda. Claro = sin atributo; oscuro = data-theme="dark".
+  const THEME_KEY = 'vitek-conv-theme';
+  function applyTheme(theme) {
+    if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    else document.documentElement.removeAttribute('data-theme');
+  }
+  let currentTheme = 'light';
+  try { currentTheme = localStorage.getItem(THEME_KEY) || 'light'; } catch (e) { /* sin localStorage */ }
+  applyTheme(currentTheme);
+  document.getElementById('theme-toggle').addEventListener('click', () => {
+    currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    applyTheme(currentTheme);
+    try { localStorage.setItem(THEME_KEY, currentTheme); } catch (e) { /* sin localStorage */ }
   });
 
   document.getElementById('proj-name').value = 'Proyecto ' + formatSpanishDate(new Date());
