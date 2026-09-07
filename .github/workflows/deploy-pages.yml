@@ -26,6 +26,10 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
+        with:
+          # Habilita Pages (build_type=workflow) si el repo todavía no lo tiene,
+          # en lugar de fallar con "Get Pages site failed / Not Found".
+          enablement: true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
