@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PDF a Excel — Reportes de Panel</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    min-height: 100vh;
+    background: #1a1a2e;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: #e8eaf0;
+    padding: 32px 24px 64px;
+  }
+
+  .wrap { max-width: 1200px; margin: 0 auto; }
+
+  header { margin-bottom: 28px; }
+
+  h1 {
+    font-size: 1.5rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #fff;
+  }
+
+  header p {
+    margin-top: 8px;
+    color: #97a0bd;
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+
+  /* ---------- drop zone ---------- */
+  #drop {
+    border: 2px dashed #3a4a6b;
+    border-radius: 16px;
+    background: #16213e;
+    padding: 44px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+  }
+  #drop:hover, #drop.over {
+    border-color: #e94560;
+    background: #1b2749;
+  }
+  #drop .big { font-size: 2.2rem; }
+  #drop .t1 { margin-top: 10px; font-size: 1.02rem; font-weight: 600; }
+  #drop .t2 { margin-top: 6px; font-size: .85rem; color: #7f89a8; }
+  input[type=file] { display: none; }
+
+  /* ---------- buttons ---------- */
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin: 22px 0 18px;
+  }
+
+  button {
+    padding: 10px 20px;
+    border-radius: 9px;
+    border: none;
+    cursor: pointer;
+    font-size: .9rem;
+    font-weight: 600;
+    letter-spacing: .03em;
+    transition: background .18s, transform .1s, opacity .2s;
+  }
+  button:active { transform: scale(.97); }
+  button:disabled { opacity: .38; cursor: not-allowed; }
+
+  .b-primary { background: #1d9a5f; color: #fff; }
+  .b-primary:not(:disabled):hover { background: #177d4d; }
+
+  .b-ghost {
+    background: #0f3460; color: #a9d6f0; border: 1.5px solid #17548a;
+  }
+  .b-ghost:not(:disabled):hover { background: #114376; }
+
+  .b-danger { background: transparent; color: #d9748b; border: 1.5px solid #6d2b3c; }
+  .b-danger:not(:disabled):hover { background: #2c1620; }
+
+  .count { margin-left: auto; font-size: .85rem; color: #97a0bd; }
+
+  /* ---------- log ---------- */
+  #log { margin: 14px 0; display: flex; flex-direction: column; gap: 5px; }
+  .row-log {
+    font-size: .82rem;
+    padding: 7px 12px;
+    border-radius: 7px;
+    background: #16213e;
+    border-left: 3px solid #2f3f63;
+    color: #b9c1d9;
+  }
+  .row-log.ok  { border-left-color: #1d9a5f; }
+  .row-log.err { border-left-color: #e94560; color: #f0a8b6; }
+
+  /* ---------- table ---------- */
+  .tablebox {
+    overflow-x: auto;
+    border-radius: 12px;
+    border: 1px solid #2a3a5c;
+    background: #16213e;
+    max-height: 62vh;
+    overflow-y: auto;
+  }
+  table { border-collapse: collapse; font-size: .8rem; white-space: nowrap; }
+  th, td { padding: 8px 12px; border-bottom: 1px solid #22304e; text-align: left; }
+  thead th {
+    position: sticky; top: 0;
+    background: #0f2145;
+    color: #b7c2e0;
+    font-weight: 600;
+    font-size: .74rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    border-bottom: 2px solid #2a3a5c;
+    z-index: 2;
+  }
+  tbody tr:hover { background: #1b2749; }
+  td.pos { color: #ff6b81; font-weight: 700; }
+  td.neg { color: #6b7899; }
+  td.lab { color: #fff; font-weight: 600; }
+  .empty { padding: 34px; text-align: center; color: #6b7899; font-size: .9rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>PDF a Excel</h1>
+    <p>
+      Arrastrá uno o varios PDF de reporte de panel. Cada corrida se convierte en una fila
+      y cada target en una columna. El <strong>Sample ID</strong> del reporte se exporta como <strong>LAB ID</strong>.
+    </p>
+  </header>
+
+  <div id="drop">
+    <div class="big">📄→📊</div>
+    <div class="t1">Arrastrá los PDF acá o hacé clic para elegirlos</div>
+    <div class="t2">Podés seleccionar varios archivos a la vez</div>
+    <input type="file" id="file" accept="application/pdf,.pdf" multiple />
+  </div>
+
+  <div class="bar">
+    <button class="b-primary" id="btn-xlsx" disabled>⬇ Descargar Excel (.xlsx)</button>
+    <button class="b-ghost"   id="btn-csv"  disabled>⬇ Descargar CSV</button>
+    <button class="b-danger"  id="btn-clear" disabled>Limpiar</button>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div id="log"></div>
+
+  <div class="tablebox">
+    <div class="empty" id="empty">Todavía no cargaste ningún PDF.</div>
+    <table id="tbl" style="display:none">
+      <thead><tr id="thead-row"></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+/* ============================================================
+   Carga de librerías con CDN de respaldo
+   ============================================================ */
+const CDNS = [
+  { pdf:  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+    work: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+    xlsx: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js' },
+  { pdf:  'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
+    work: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
+    xlsx: 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js' },
+];
+
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = res;
+    s.onerror = () => rej(new Error('No se pudo cargar ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+let LIBS_READY = false;
+(async function initLibs() {
+  for (const cdn of CDNS) {
+    try {
+      await loadScript(cdn.pdf);
+      await loadScript(cdn.xlsx);
+      if (!window.pdfjsLib || !window.XLSX) throw new Error('globals faltantes');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = cdn.work;
+      LIBS_READY = true;
+      return;
+    } catch (e) { /* probar el siguiente CDN */ }
+  }
+  log('No se pudieron cargar las librerías (pdf.js / SheetJS). Revisá tu conexión a internet.', 'err');
+})();
+
+/* ============================================================
+   Extracción de tokens posicionados desde el PDF
+   ============================================================ */
+
+// Cada item de pdf.js se parte en palabras, estimando la x de cada una
+// proporcionalmente al ancho del run. Suficientemente preciso: las
+// columnas del reporte están separadas por ~270pt.
+function itemsToTokens(items, viewportHeight) {
+  const toks = [];
+  for (const it of items) {
+    const s = it.str;
+    if (!s || !s.trim()) continue;
+    const x0 = it.transform[4];
+    const top = viewportHeight - it.transform[5];
+    const w = it.width || 0;
+    const re = /\S+/g;
+    let m;
+    while ((m = re.exec(s)) !== null) {
+      toks.push({
+        text: m[0],
+        x: x0 + (s.length ? (m.index / s.length) * w : 0),
+        y: top,
+      });
+    }
+  }
+  return toks;
+}
+
+// Agrupa tokens en líneas visuales por coordenada vertical.
+function groupLines(tokens, tol = 3) {
+  const buckets = new Map();
+  for (const t of tokens) {
+    const k = Math.round(t.y / tol);
+    if (!buckets.has(k)) buckets.set(k, []);
+    buckets.get(k).push(t);
+  }
+  return [...buckets.keys()].sort((a, b) => a - b).map(k => ({
+    y: k * tol,
+    toks: buckets.get(k).sort((a, b) => a.x - b.x),
+  }));
+}
+
+/* ============================================================
+   Parseo del reporte
+   ============================================================ */
+
+const RESULT_WORDS = ['Positive', 'Negative', 'Invalid', 'Equivocal', 'N/A'];
+const RESULT_ALT = RESULT_WORDS.map(w => w.replace('/', '\\/')).join('|');
+// El lookahead descarta rótulos como "POSITIVE:" del bloque de resumen —
+// si no, esa x se toma como origen de una columna inexistente y parte las filas.
+const RESULT_RE = new RegExp(
+  '^(' + RESULT_ALT + ')(?![:\\w])' +
+  '\\s*[\\u2713\\u2714\\u221A\\u00D7\\u2717]?\\s*(.*)$', 'i');
+const STARTS_RESULT_RE = new RegExp('^(' + RESULT_ALT + ')(?![:\\w])', 'i');
+
+const META = [
+  ['LAB ID',                    'Sample ID:'],
+  ['Run Date',                  'Run Date:'],
+  ['Sample Type',               'Sample Type:'],
+  ['Pouch Type',                'Pouch Type:'],
+  ['Pouch Lot',                 'Pouch Lot:'],
+  ['Pouch Serial Number',       'Pouch Serial Number:'],
+  ['Internal Process Controls', 'Internal Process Controls:'],
+  ['Instrument',                'Instrument:'],
+  ['Operator',                  'Operator:'],
+];
+
+// Busca una etiqueta y devuelve el texto de la línea siguiente que
+// arranca aproximadamente en la misma x (el valor vive debajo del rótulo).
+function readField(lines, label) {
+  const want = label.split(/\s+/);
+  for (let i = 0; i < lines.length; i++) {
+    const ts = lines[i].toks;
+    for (let j = 0; j + want.length <= ts.length; j++) {
+      let hit = true;
+      for (let k = 0; k < want.length; k++) {
+        if (ts[j + k].text.toLowerCase() !== want[k].toLowerCase()) { hit = false; break; }
+      }
+      if (!hit) continue;
+      const lx = ts[j].x;
+      const rx = (j + want.length < ts.length) ? ts[j + want.length].x : Infinity;
+      if (i + 1 >= lines.length) return '';
+      return lines[i + 1].toks
+        .filter(t => t.x >= lx - 6 && t.x < rx - 6)
+        .map(t => t.text).join(' ').trim();
+    }
+  }
+  return '';
+}
+
+// Detecta los orígenes x de las columnas agrupando las posiciones de
+// todos los tokens que empiezan con una palabra de resultado.
+function detectColumns(lines, tol = 20) {
+  const xs = [];
+  for (const ln of lines)
+    for (const t of ln.toks)
+      if (STARTS_RESULT_RE.test(t.text)) xs.push(t.x);
+  if (!xs.length) return [];
+  xs.sort((a, b) => a - b);
+  const cols = [xs[0]];
+  for (const x of xs) if (x - cols[cols.length - 1] > tol) cols.push(x);
+  return cols;
+}
+
+function parseReport(lines) {
+  const rec = { meta: {}, targets: [], order: [] };
+  for (const [key, label] of META) rec.meta[key] = readField(lines, label);
+
+  const cols = detectColumns(lines);
+  const bounds = cols.map((lo, i) => [lo, i + 1 < cols.length ? cols[i + 1] : Infinity]);
+
+  for (const ln of lines) {
+    bounds.forEach(([lo, hi], ci) => {
+      const cell = ln.toks
+        .filter(t => t.x >= lo - 6 && t.x < hi - 6)
+        .map(t => t.text).join(' ').trim();
+      if (!cell) return;
+      const m = cell.match(RESULT_RE);
+      if (!m) return;
+      const name = m[2].replace(/^[^\w(]+/, '').trim();
+      if (!name) return;
+      rec.targets.push({
+        name,
+        value: m[1][0].toUpperCase() + m[1].slice(1).toLowerCase(),
+        col: ci,
+        y: ln.y,
+      });
+    });
+  }
+  return rec;
+}
+
+async function parsePdf(file) {
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let tokens = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const vp = page.getViewport({ scale: 1 });
+    const tc = await page.getTextContent();
+    // Se desplaza cada página hacia abajo para que no se solapen las y
+    const offset = (p - 1) * 10000;
+    tokens = tokens.concat(
+      itemsToTokens(tc.items, vp.height).map(t => ({ ...t, y: t.y + offset }))
+    );
+  }
+  return parseReport(groupLines(tokens));
+}
+
+/* ============================================================
+   Estado y render
+   ============================================================ */
+
+const rows = [];               // una entrada por PDF procesado
+const targetOrder = new Map(); // nombre -> {col, y}  (para ordenar columnas)
+
+const $ = id => document.getElementById(id);
+
+function log(msg, cls = '') {
+  const d = document.createElement('div');
+  d.className = 'row-log ' + cls;
+  d.textContent = msg;
+  $('log').appendChild(d);
+}
+
+function orderedTargets() {
+  return [...targetOrder.entries()]
+    .sort((a, b) => (a[1].col - b[1].col) || (a[1].y - b[1].y))
+    .map(e => e[0]);
+}
+
+function buildMatrix() {
+  const tg = orderedTargets();
+  const head = ['Archivo', ...META.map(m => m[0]), 'Positivos', ...tg];
+  const body = rows.map(r => [
+    r.file,
+    ...META.map(m => r.meta[m[0]] || ''),
+    r.positives.join('; '),
+    ...tg.map(t => r.results[t] || ''),
+  ]);
+  return { head, body };
+}
+
+function render() {
+  $('count').textContent = rows.length
+    ? `${rows.length} corrida${rows.length > 1 ? 's' : ''} · ${targetOrder.size} targets`
+    : '';
+  const has = rows.length > 0;
+  $('btn-xlsx').disabled = $('btn-csv').disabled = $('btn-clear').disabled = !has;
+  $('tbl').style.display = has ? '' : 'none';
+  $('empty').style.display = has ? 'none' : '';
+  if (!has) return;
+
+  const { head, body } = buildMatrix();
+  $('thead-row').innerHTML = '';
+  head.forEach(h => {
+    const th = document.createElement('th');
+    th.textContent = h;
+    $('thead-row').appendChild(th);
+  });
+
+  $('tbody').innerHTML = '';
+  body.forEach(r => {
+    const tr = document.createElement('tr');
+    r.forEach((v, i) => {
+      const td = document.createElement('td');
+      td.textContent = v;
+      if (head[i] === 'LAB ID') td.className = 'lab';
+      else if (/^positive$/i.test(v)) td.className = 'pos';
+      else if (/^negative$/i.test(v)) td.className = 'neg';
+      tr.appendChild(td);
+    });
+    $('tbody').appendChild(tr);
+  });
+}
+
+/* ============================================================
+   Ingesta de archivos
+   ============================================================ */
+
+async function handleFiles(fileList) {
+  const pdfs = [...fileList].filter(f => /\.pdf$/i.test(f.name));
+  if (!pdfs.length) { log('No seleccionaste ningún PDF.', 'err'); return; }
+  if (!LIBS_READY) { log('Las librerías todavía no terminaron de cargar. Probá de nuevo en unos segundos.', 'err'); return; }
+
+  for (const f of pdfs) {
+    try {
+      const rec = await parsePdf(f);
+      if (!rec.targets.length) {
+        log(`${f.name}: no se encontraron resultados de targets. ¿Es un reporte de panel?`, 'err');
+        continue;
+      }
+      const results = {};
+      for (const t of rec.targets) {
+        results[t.name] = t.value;
+        if (!targetOrder.has(t.name)) targetOrder.set(t.name, { col: t.col, y: t.y });
+      }
+      const positives = rec.targets.filter(t => /^positive$/i.test(t.value)).map(t => t.name);
+      rows.push({ file: f.name, meta: rec.meta, results, positives });
+      log(`${f.name}  →  LAB ID "${rec.meta['LAB ID'] || '(vacío)'}" · ${rec.targets.length} targets · ${positives.length} positivo(s)`, 'ok');
+    } catch (err) {
+      log(`${f.name}: error al procesar — ${err.message}`, 'err');
+    }
+  }
+  render();
+}
+
+/* ============================================================
+   Descargas
+   ============================================================ */
+
+function downloadXlsx() {
+  const { head, body } = buildMatrix();
+  const ws = XLSX.utils.aoa_to_sheet([head, ...body]);
+  ws['!cols'] = head.map(h => ({ wch: Math.min(Math.max(h.length + 2, 11), 30) }));
+  ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Resultados');
+  XLSX.writeFile(wb, 'resultados_panel.xlsx');
+}
+
+function downloadCsv() {
+  const { head, body } = buildMatrix();
+  const esc = v => {
+    const s = String(v ?? '');
+    return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const csv = [head, ...body].map(r => r.map(esc).join(',')).join('\r\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'resultados_panel.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ============================================================
+   Eventos
+   ============================================================ */
+
+const drop = $('drop');
+drop.addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', e => { handleFiles(e.target.files); e.target.value = ''; });
+
+['dragenter', 'dragover'].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => handleFiles(e.dataTransfer.files));
+
+$('btn-xlsx').addEventListener('click', downloadXlsx);
+$('btn-csv').addEventListener('click', downloadCsv);
+$('btn-clear').addEventListener('click', () => {
+  rows.length = 0;
+  targetOrder.clear();
+  $('log').innerHTML = '';
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
