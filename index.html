@@ -1280,6 +1280,32 @@ ${analytesXml}
              bad: fallado || sinCalibrar };
   }
 
+  // Una muestra cuya adquisición falló no se exporta: un <Analyte> sin picos no
+  // le sirve a la plataforma de identificación y sólo ensucia el proyecto. Se
+  // sigue mostrando en pantalla (en rojo) para que quede constancia de que el
+  // archivo se cargó y por qué se descartó.
+  function isSampleExcluded(sample) {
+    if (describeQuality(sample).bad) return true;
+    if (!sample.mz || !sample.intensity || sample.mz.length === 0) return true;
+    return false;
+  }
+
+  // Separa lo exportable de lo descartado, para poder informar ambas cifras.
+  function splitExportables() {
+    const incluidas = [], excluidas = [];
+    for (const s of state.samples) (isSampleExcluded(s) ? excluidas : incluidas).push(s);
+    return { incluidas, excluidas };
+  }
+
+  // "3 muestras" / "1 muestra", y el detalle de exclusiones si las hubo.
+  function describeExport(incluidas, excluidas) {
+    let msg = `${incluidas.length} muestra${incluidas.length === 1 ? '' : 's'}`;
+    if (excluidas.length) {
+      msg += ` · ${excluidas.length} excluida${excluidas.length === 1 ? '' : 's'} por adquisición fallida`;
+    }
+    return msg;
+  }
+
   // Aviso breve tipo "toast" (confirmaciones de descarga).
   function showToast(msg) {
     let t = document.getElementById('toast');
@@ -1517,6 +1543,11 @@ ${analytesXml}
       qualityMsg += (qualityMsg ? ' ' : '') +
         'Además, el <b>eje de masas no está calibrado</b>: el archivo trae tiempos de vuelo en lugar de m/z, así que no se pueden detectar picos.';
     }
+    // La exclusión nunca es silenciosa: se avisa en la propia tarjeta.
+    if (isSampleExcluded(sample)) {
+      qualityMsg += (qualityMsg ? ' ' : '') +
+        '<b>No se incluye en el XML ni en los CSV del proyecto.</b>';
+    }
     const qualityRow = qualityMsg ? `
       <div class="sample-warning danger">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
@@ -1743,9 +1774,14 @@ ${analytesXml}
   // Descargar los CSV de picos de todas las muestras en un .zip
   btnZip.addEventListener('click', () => {
     if (state.samples.length === 0) return;
+    const { incluidas, excluidas } = splitExportables();
+    if (incluidas.length === 0) {
+      showToast('No se generaron CSVs: todas las muestras tienen la adquisición fallida');
+      return;
+    }
     const files = {};
     const used = new Set();
-    for (const sample of state.samples) {
+    for (const sample of incluidas) {
       let base = sanitizeFilename(sample.sampleId);
       let candidate = base;
       let n = 2;
@@ -1755,16 +1791,21 @@ ${analytesXml}
     }
     const zipped = fflate.zipSync(files);
     triggerDownload(new Blob([zipped], { type: 'application/zip' }), 'picos_muestras.zip');
-    showToast(`CSVs descargados · ${state.samples.length} muestra${state.samples.length === 1 ? '' : 's'}`);
+    showToast(`CSVs descargados · ${describeExport(incluidas, excluidas)}`);
   });
 
   // Descargar el XML del proyecto completo (todas las muestras cargadas en un solo <MspMatchResult>)
   btnDownloadProjectXml.addEventListener('click', () => {
     if (state.samples.length === 0) return;
+    const { incluidas, excluidas } = splitExportables();
+    if (incluidas.length === 0) {
+      showToast('No se generó el XML: todas las muestras tienen la adquisición fallida');
+      return;
+    }
     const project = getProjectInfo();
-    const xml = buildProjectXml(project, state.samples);
+    const xml = buildProjectXml(project, incluidas);
     triggerDownload(new Blob([xml], { type: 'application/xml' }), sanitizeFilename(project.name || 'proyecto') + '.xml');
-    showToast(`XML generado · ${state.samples.length} muestra${state.samples.length === 1 ? '' : 's'}`);
+    showToast(`XML generado · ${describeExport(incluidas, excluidas)}`);
   });
 
   // Si se completa la versión de KB después de cargar archivos, recalcular
