@@ -41,6 +41,20 @@ Todo el procesamiento ocurre en el navegador (sin subir archivos a ningún servi
 [fflate](https://github.com/101arrowz/fflate) (vendorizado en `vendor/`) para descomprimir
 los arrays binarios `zlib`/`gzip` del mzML.
 
+## `tools/build_artifact.py` — versión de un solo archivo
+
+Genera una copia de la app en un único `.html`, con fflate embebido, para publicarla donde
+no se pueden servir archivos aparte o para tenerla portátil (funciona offline con solo
+abrirla):
+
+```
+python3 tools/build_artifact.py salida.html --completo
+```
+
+Al embeber la librería la aísla a propósito, para que su envoltorio UMD no se registre en
+un cargador de módulos de la página anfitriona y siempre quede disponible como global; sin
+eso, la app falla con `fflate is not defined` al abrir un `.mzML` comprimido con zlib.
+
 ## `extras/tacometro.html`
 
 Herramienta anterior del repo (un velocímetro/gauge genérico), sin relación con este
