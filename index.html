@@ -1733,7 +1733,7 @@ ${analytesXml}
         card.className = 'sample-card error';
         card.innerHTML = `<div class="sample-head"><div class="file-name">${escapeXml(file.name)}</div>
           <span class="badge warn">Error al procesar</span></div>
-          <div class="meta-line">${escapeXml(err.message)}</div>`;
+          <div class="meta-line">${escapeXml(explainError(err))}</div>`;
         samplesEl.appendChild(card);
       }
     }
@@ -1863,6 +1863,34 @@ ${analytesXml}
     applyTheme(currentTheme);
     try { localStorage.setItem(THEME_KEY, currentTheme); } catch (e) { /* sin localStorage */ }
   });
+
+  // La descompresión de los arrays (zlib/gzip) y el .zip de CSVs dependen de
+  // fflate. Si el index.html se copia sin la carpeta vendor/ al lado, la
+  // librería no carga y el fallo aparecía como un críptico "fflate is not
+  // defined" recién al abrir un archivo. Se avisa de entrada y en castellano.
+  const FALTA_FFLATE = 'No se cargó la librería de descompresión (vendor/fflate.umd.min.js). ' +
+    'Si copiaste el index.html solo, copiá también la carpeta vendor/ al lado, ' +
+    'o usá la versión de un solo archivo, que la trae incorporada.';
+
+  function libreriaDisponible() {
+    return typeof fflate !== 'undefined';
+  }
+
+  function explainError(err) {
+    const msg = (err && err.message) || String(err);
+    return /fflate is not defined/i.test(msg) ? FALTA_FFLATE : msg;
+  }
+
+  if (!libreriaDisponible()) {
+    const aviso = document.createElement('div');
+    aviso.className = 'sample-warning danger';
+    aviso.style.margin = '0 0 14px';
+    aviso.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/>' +
+      '<path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg><span><b>Falta un archivo de la app.</b> ' + FALTA_FFLATE + '</span>';
+    const zona = document.getElementById('dropzone');
+    zona.parentNode.insertBefore(aviso, zona);
+  }
 
   document.getElementById('proj-name').value = 'Proyecto ' + formatSpanishDate(new Date());
   loadPrefs();
