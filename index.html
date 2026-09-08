@@ -44,6 +44,9 @@
     --warn-fg:     #97671a;
     --danger-brd:  #e7b7c0;
     --danger-bg:   #fcedf0;
+    --bad-bg:      #fce8ec;
+    --bad-fg:      #a52a3d;
+    --bad-strong:  #7d1a2a;
     --note-bg:     #e8f4fb;
     --note-brd:    #c3e0f1;
     --note-left:   var(--accent);
@@ -70,6 +73,7 @@
     --dz-border:#2c4150; --dz-hover:#0c161e; --dz-drag:#10222e;
     --good-bg:#0f2f28; --good-fg:#4bd6a0; --warn-bg:#3a2c12; --warn-fg:#f0c274;
     --danger-brd:#7a3340; --danger-bg:#23141a;
+    --bad-bg:#3a1620; --bad-fg:#f4a3b0; --bad-strong:#ffd2da;
     --note-bg:#10222e; --note-brd:#234455; --note-fg:#bcd0dd;
     --disc-bg:#1c1608; --disc-brd:#4a3a12; --disc-fg:#d6c9ad; --disc-strong:#f3e6c8;
     --hero-grad:linear-gradient(135deg,#12242f 0%,#0e1a23 62%,#101c26 100%); --hero-title:#fff;
@@ -312,6 +316,7 @@
   }
   .badge.warn { background: var(--warn-bg); color: var(--warn-fg); }
   .badge.good { background: var(--good-bg); color: var(--good-fg); }
+  .badge.bad  { background: var(--bad-bg); color: var(--bad-fg); font-weight: 600; }
 
   .fields {
     display: grid;
@@ -463,6 +468,8 @@
     padding: 7px 11px;
   }
   .sample-warning svg { flex: 0 0 auto; }
+  .sample-warning.danger { color: var(--bad-fg); background: var(--bad-bg); }
+  .sample-warning.danger b { color: var(--bad-strong); }
 
   .toast {
     position: fixed;
@@ -851,6 +858,15 @@
     const scopeMode = findCvValue(directCvParams, 'BM:1001083');
     const acquisitionCount = findCvValue(directCvParams, 'BM:1001033');
     const qualityIndicator = findCvValue(directCvParams, 'BM:1001031');
+    // Calidad de la corrida: un espectro AVG es la suma de varios "perfiles"
+    // (cada uno, varias decenas de disparos láser), y el equipo aprueba o
+    // descarta cada perfil. La proporción aprobados/total es un indicador
+    // directo de qué tan buena fue la adquisición. El total no se lee del
+    // instrumento sino que se suma acá, porque estos dos vienen por espectro.
+    const acceptedProfiles = findCvValue(directCvParams, 'BM:1001030');
+    const rejectedProfiles = findCvValue(directCvParams, 'BM:1001029');
+    // Texto con el que el propio equipo explica la falla, cuando la hubo.
+    const acquisitionErrors = findCvValue(directCvParams, 'BM:1001032');
 
     const binaryArrays = Array.from(spectrumEl.getElementsByTagName('binaryDataArray'));
     let mz = null, intensity = null;
@@ -865,6 +881,7 @@
     return {
       id, index, spotIdAttr, isCentroid, isProfile, msLevel, spotId, mz, intensity, scanWindow,
       sampleType, scopeMode, acquisitionCount, qualityIndicator,
+      acceptedProfiles, rejectedProfiles, acquisitionErrors,
     };
   }
 
@@ -946,6 +963,9 @@
         scopeMode: parsed.scopeMode,
         acquisitionCount: parsed.acquisitionCount,
         qualityIndicator: parsed.qualityIndicator,
+        acceptedProfiles: parsed.acceptedProfiles,
+        rejectedProfiles: parsed.rejectedProfiles,
+        acquisitionErrors: parsed.acquisitionErrors,
         warnings,
         peaks: [],
         // Identificadores estables para el XML de destino: se generan una
@@ -1227,6 +1247,39 @@ ${analytesXml}
     return { labels, warn };
   }
 
+  // Resume qué tan buena fue la adquisición. Un espectro promediado se arma
+  // sumando "perfiles" (cada uno, varias decenas de disparos láser) que el
+  // equipo aprueba o descarta uno por uno; la proporción de aprobados dice
+  // mucho más que el GOOD/BAD suelto. Devuelve además `bad`, que es lo que se
+  // marca en rojo: el equipo dio el spot por fallado, no llegó a adquirirlo, o
+  // el espectro quedó sin calibrar.
+  function describeQuality(sample) {
+    const aprobados = Number(sample.acceptedProfiles);
+    const rechazados = Number(sample.rejectedProfiles);
+    const hayConteo = Number.isFinite(aprobados) && Number.isFinite(rechazados);
+    const total = hayConteo ? aprobados + rechazados : null;
+    const porcentaje = (hayConteo && total > 0) ? Math.round((aprobados / total) * 100) : null;
+
+    const indicador = (sample.qualityIndicator || '').trim();
+    const fallado = indicador !== '' && indicador.toUpperCase() !== 'GOOD';
+
+    // Si falla la calibración, el equipo exporta el eje sin convertir: quedan
+    // tiempos de vuelo (del orden de 1e-5 s) en lugar de masas. Se detecta
+    // porque el m/z más alto cae muy por debajo de cualquier proteína real.
+    const mz = sample.mz;
+    const sinCalibrar = !!(mz && mz.length && mz[mz.length - 1] < 100);
+
+    let texto = null;
+    if (hayConteo) {
+      texto = total > 0
+        ? `${aprobados}/${total} perfiles (${porcentaje} %)`
+        : 'sin perfiles adquiridos';
+    }
+
+    return { aprobados, total, porcentaje, hayConteo, texto, indicador, fallado, sinCalibrar,
+             bad: fallado || sinCalibrar };
+  }
+
   // Aviso breve tipo "toast" (confirmaciones de descarga).
   function showToast(msg) {
     let t = document.getElementById('toast');
@@ -1300,6 +1353,14 @@ ${analytesXml}
       ctx.fillStyle = '#556';
       ctx.font = '12px Segoe UI, sans-serif';
       ctx.fillText('Sin datos de espectro para graficar', 10, H / 2);
+      return null;
+    }
+    // Espectro exportado sin calibrar (eje en tiempo de vuelo): graficarlo
+    // contra un eje de m/z daría una imagen sin sentido, así que se explica.
+    if (mz[mz.length - 1] < 100) {
+      ctx.fillStyle = '#8a95a0';
+      ctx.font = '12px Segoe UI, sans-serif';
+      ctx.fillText('Espectro sin calibrar: el eje viene en tiempo de vuelo, no en m/z.', 10, H / 2);
       return null;
     }
 
@@ -1420,8 +1481,16 @@ ${analytesXml}
 
     const warnBadges = sample.warnings.map(w => `<span class="badge warn">${escapeXml(w)}</span>`).join('');
     const typeBadge = sample.isCentroid ? 'centroidal' : (sample.isProfile ? 'perfil' : 'tipo desconocido');
+    const quality = describeQuality(sample);
+    // Toda la tarjeta se marca en rojo cuando la adquisición falló, para que se
+    // note de un vistazo al revisar un lote grande.
+    if (quality.bad) card.classList.add('error');
     const qualityBadge = sample.qualityIndicator
-      ? `<span class="badge${sample.qualityIndicator.toUpperCase() === 'GOOD' ? ' good' : ' warn'}">spot: ${escapeXml(sample.qualityIndicator)}</span>`
+      ? `<span class="badge${quality.fallado ? ' bad' : ' good'}">spot: ${escapeXml(sample.qualityIndicator)}</span>`
+      : '';
+    // Perfiles aprobados sobre el total: en rojo si no se aprobó ninguno.
+    const profileBadge = quality.texto
+      ? `<span class="badge${quality.aprobados === 0 ? ' bad' : ''}" title="Perfiles aprobados por el equipo sobre el total adquirido. Cada perfil son 50 disparos láser.">${escapeXml(quality.texto)}</span>`
       : '';
     const sampleTypeBadge = sample.sampleType ? `<span class="badge">${escapeXml(sample.sampleType)}</span>` : '';
 
@@ -1436,6 +1505,24 @@ ${analytesXml}
         <span>Para la identificación se recomienda usar archivos <b>IVD</b>.</span>
       </div>` : '';
 
+    // Aviso en rojo cuando el equipo dio la adquisición por fallada. Se cita el
+    // motivo tal como lo reporta el propio equipo, que es más preciso que
+    // cualquier texto que pongamos nosotros.
+    let qualityMsg = '';
+    if (quality.fallado) {
+      qualityMsg = `El equipo marcó este spot como <b>${escapeXml(quality.indicador)}</b>: no es apto para identificación.`;
+      if (sample.acquisitionErrors) qualityMsg += ` Motivo informado: “${escapeXml(sample.acquisitionErrors)}”.`;
+    }
+    if (quality.sinCalibrar) {
+      qualityMsg += (qualityMsg ? ' ' : '') +
+        'Además, el <b>eje de masas no está calibrado</b>: el archivo trae tiempos de vuelo en lugar de m/z, así que no se pueden detectar picos.';
+    }
+    const qualityRow = qualityMsg ? `
+      <div class="sample-warning danger">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+        <span>${qualityMsg}</span>
+      </div>` : '';
+
     card.innerHTML = `
       <button class="card-remove" title="Quitar muestra" aria-label="Quitar muestra">✕</button>
       <div class="sample-head">
@@ -1447,9 +1534,11 @@ ${analytesXml}
           ${labelBadges}
           ${sampleTypeBadge}
           ${qualityBadge}
+          ${profileBadge}
           ${warnBadges}
         </div>
       </div>
+      ${qualityRow}
       ${warningRow}
 
       <div class="fields">
