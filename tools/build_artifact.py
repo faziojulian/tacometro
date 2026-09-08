@@ -82,7 +82,11 @@ def main() -> None:
     salida.parent.mkdir(parents=True, exist_ok=True)
     salida.write_text(contenido, encoding='utf-8')
 
-    assert 'vendor/fflate' not in contenido, 'quedó una referencia externa a fflate'
+    # Se comprueba que no quede la ETIQUETA que carga el archivo externo. La
+    # cadena "vendor/fflate" suelta sí puede aparecer: el aviso que se muestra
+    # cuando la librería no cargó nombra esa ruta para orientar a quien la usa.
+    assert TAG_VENDOR not in contenido, 'quedó la etiqueta externa de fflate'
+    assert '<script src="vendor/' not in contenido, 'quedó un script externo sin embeber'
     assert 'unzlibSync' in contenido, 'fflate no quedó embebido'
     print(f'OK: {salida} ({len(contenido) // 1024} KB, '
           f'{"documento completo" if completo else "cuerpo para Artifact"})')
