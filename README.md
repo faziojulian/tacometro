@@ -40,7 +40,11 @@ best-effort y conviene revisar:
 
 - el nombre de cada `Analyte` (`name`/`externId`) se reconstruye combinando campos del
   `.mzML` según el patrón observado; es editable por muestra ("Nombre MSP") por si no
-  generaliza a otro tipo de muestra/protocolo;
+  generaliza a otro tipo de muestra/protocolo. El modelo del equipo **no se adivina**: sale
+  del cvParam de modelo (`BM:1001080`) o, si no está, del nombre de instrumento del propio
+  archivo (`BM:1001071`); si el archivo no declara ninguno, ese segmento se omite en vez de
+  afirmar un modelo que no es. La abreviatura exacta para VITEK MS Legacy está confirmada
+  contra pipelines de terceros, no contra un archivo Legacy real;
 - la versión de KB no viaja en el `.mzML` de VITEK, hay que completarla a mano en "Datos
   del proyecto" si se conoce;
 - S/N y resolución son estimaciones calculadas desde el perfil exportado (línea de base y
@@ -49,8 +53,11 @@ best-effort y conviene revisar:
 Antes de usarlo en producción, conviene procesar un lote de prueba y verificar que el
 archivo se acepta e identifica como se espera.
 
-Usa [fflate](https://github.com/101arrowz/fflate) (vendorizado en `vendor/`) para
-descomprimir los arrays binarios `zlib`/`gzip` del mzML.
+**`index.html` es un único archivo autocontenido**: trae
+[fflate](https://github.com/101arrowz/fflate) (MIT) embebido para descomprimir los
+arrays binarios `zlib`/`gzip` del mzML y armar los `.zip`. Se puede copiar solo a
+cualquier lado y funciona offline con abrirlo; no necesita la carpeta `vendor/` al
+lado, que queda en el repo como origen de la copia y para la licencia.
 
 ## `pdf-a-excel.html`
 
@@ -70,16 +77,18 @@ PDF se parsea localmente con pdf.js y el Excel se genera con SheetJS.
 Si un panel trae targets distintos, las columnas se van agregando solas: cada
 fila queda vacía en los targets que su reporte no incluye.
 
-## `tools/build_artifact.py` — versión de un solo archivo
+## `tools/build_artifact.py` — versión para Artifact
 
-Genera una copia del conversor de mzML en un único `.html`, con fflate embebido, para
-publicarlo donde no se pueden servir archivos aparte o para tenerlo portátil (funciona
-offline con solo abrirlo):
+Para tener el conversor portátil alcanza con copiar `index.html`: ya es un solo archivo.
+Este script existe sólo para el formato de Artifact de claude.ai, que espera el contenido
+**sin** el envoltorio del documento (lo agrega el anfitrión):
 
 ```
-python3 tools/build_artifact.py salida.html --completo
+python3 tools/build_artifact.py salida.html              # cuerpo para Artifact
+python3 tools/build_artifact.py salida.html --completo   # documento entero
 ```
 
-Al embeber la librería la aísla a propósito, para que su envoltorio UMD no se registre en
-un cargador de módulos de la página anfitriona y siempre quede disponible como global; sin
-eso, la app falla con `fflate is not defined` al abrir un `.mzML` comprimido con zlib.
+En `index.html`, fflate va envuelta en una función que declara `define`, `module` y
+`exports` como variables locales vacías. Sin ese aislamiento, en una página anfitriona con
+cargador de módulos el UMD se registra ahí, nunca crea la global `fflate`, y la app falla
+con `fflate is not defined` al abrir un `.mzML` comprimido con zlib o al armar un `.zip`.

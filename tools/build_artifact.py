@@ -1,26 +1,30 @@
 #!/usr/bin/env python3
-"""Genera una versión de un solo archivo de la app, con fflate embebido.
+"""Genera la versión "cuerpo" de la app para publicarla como Artifact.
 
-Sirve para publicar la app donde no se pueden servir archivos aparte (por
-ejemplo, un Artifact de claude.ai) y para tener una copia portátil que
-funcione offline con solo abrir el .html.
+`index.html` ya es un único archivo autocontenido: trae fflate embebido y no
+depende de nada externo, así que para tener una copia portátil alcanza con
+copiarlo tal cual. Este script existe sólo para el formato de Artifact de
+claude.ai, que espera el contenido SIN el envoltorio del documento (<!doctype>,
+<head>, <body>), porque lo agrega el anfitrión.
+
+    python3 tools/build_artifact.py salida.html              # cuerpo (Artifact)
+    python3 tools/build_artifact.py salida.html --completo   # documento entero
 
 Sobre el envoltorio de fflate
 -----------------------------
-fflate viene en formato UMD, que decide cómo exportarse según el entorno:
+La librería viene en formato UMD, que decide cómo exportarse según el entorno:
 
     typeof module   != 'undefined' && typeof exports == 'object' ? module.exports = f()
   : typeof define   != 'undefined' && define.amd               ? define(f)
   : (self || this).fflate = f()
 
-Si la página que aloja el HTML ya define `define.amd` (un cargador AMD) o
-`module`/`exports`, fflate se registra ahí y NUNCA crea la global `fflate`.
-La app falla entonces con "fflate is not defined" al abrir un .mzML con
-arrays comprimidos con zlib, un .gz, o al exportar los CSV en .zip.
-
-Por eso embebemos la librería dentro de una función que declara `define`,
-`module` y `exports` como variables locales sin valor: así el UMD ve esos
-nombres como `undefined`, toma la última rama y asigna la global en `self`.
+Si la página anfitriona ya define `define.amd` o `module`/`exports`, fflate se
+registra ahí y NUNCA crea la global `fflate`; la app falla entonces con
+"fflate is not defined" al abrir un .mzML comprimido o al armar un .zip. Por eso
+en index.html la librería está envuelta en una función que declara `define`,
+`module` y `exports` como variables locales sin valor: el UMD las ve como
+`undefined`, toma la última rama y asigna la global. Ese aislamiento vive en
+index.html, no acá; este script sólo lo arrastra junto con el resto.
 """
 
 import re
@@ -29,39 +33,15 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 ORIGEN = RAIZ / 'index.html'
-VENDOR = RAIZ / 'vendor' / 'fflate.umd.min.js'
-TAG_VENDOR = '<script src="vendor/fflate.umd.min.js"></script>'
-
-
-def envolver_fflate(codigo: str) -> str:
-    """Aísla el UMD para que siempre exporte la global `fflate`."""
-    return (
-        '<script>\n'
-        '(function(){\n'
-        '// Ver tools/build_artifact.py: sombreamos estos nombres para que el\n'
-        '// UMD de fflate no se registre en un cargador de módulos de la página\n'
-        '// anfitriona y cree siempre la global `fflate`.\n'
-        'var define, module, exports;\n'
-        + codigo +
-        '\n})();\n'
-        '</script>'
-    )
 
 
 def construir(solo_cuerpo: bool) -> str:
     html = ORIGEN.read_text(encoding='utf-8')
-    fflate = VENDOR.read_text(encoding='utf-8')
 
     estilo = re.search(r'<style>.*?</style>', html, re.S).group(0)
     cuerpo = re.search(r'<body>(.*?)</body>', html, re.S).group(1)
 
-    if TAG_VENDOR not in cuerpo:
-        sys.exit('ERROR: no se encontró el <script> de fflate en index.html')
-    cuerpo = cuerpo.replace(TAG_VENDOR, envolver_fflate(fflate))
-
     if solo_cuerpo:
-        # Formato Artifact: solo estilo + contenido del body (el host agrega
-        # <!doctype>, <head> y <body>).
         return estilo + '\n' + cuerpo
 
     titulo = re.search(r'<title>(.*?)</title>', html, re.S)
@@ -82,12 +62,12 @@ def main() -> None:
     salida.parent.mkdir(parents=True, exist_ok=True)
     salida.write_text(contenido, encoding='utf-8')
 
-    # Se comprueba que no quede la ETIQUETA que carga el archivo externo. La
-    # cadena "vendor/fflate" suelta sí puede aparecer: el aviso que se muestra
-    # cuando la librería no cargó nombra esa ruta para orientar a quien la usa.
-    assert TAG_VENDOR not in contenido, 'quedó la etiqueta externa de fflate'
-    assert '<script src="vendor/' not in contenido, 'quedó un script externo sin embeber'
+    # La app tiene que quedar autocontenida: ningún archivo servido aparte y
+    # la librería efectivamente adentro, con su envoltorio UMD aislado.
+    assert '<script src="' not in contenido, 'quedó un script externo sin embeber'
+    assert '<link rel="stylesheet"' not in contenido, 'quedó una hoja de estilos externa'
     assert 'unzlibSync' in contenido, 'fflate no quedó embebido'
+    assert 'var define, module, exports;' in contenido, 'falta el aislamiento del UMD'
     print(f'OK: {salida} ({len(contenido) // 1024} KB, '
           f'{"documento completo" if completo else "cuerpo para Artifact"})')
 
