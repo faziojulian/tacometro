@@ -5,7 +5,7 @@ nunca se suben a ningún servidor.
 
 | Página | Qué hace |
 | --- | --- |
-| [`index.html`](https://faziojulian.github.io/tacometro/) | **Convertidor de espectros VITEK® MS**: pasa archivos `.mzML` a un `.XML` de proyecto y a listas de picos en CSV, con vista previa del espectro. |
+| [`index.html`](https://faziojulian.github.io/tacometro/) | **Convertidor de espectros VITEK® MS**: pasa archivos `.mzML` a un `.XML` de proyecto y a listas de picos en CSV o TXT, con vista previa del espectro. |
 | [`pdf-a-excel.html`](https://faziojulian.github.io/tacometro/pdf-a-excel.html) | Convierte reportes de panel en PDF a Excel. Varios archivos a la vez. |
 | [`tacometro.html`](https://faziojulian.github.io/tacometro/tacometro.html) | Tacómetro: le pasás un valor de 0 a 1 y lo muestra en la aguja. Botón para descargar la imagen como PNG. |
 
@@ -19,7 +19,10 @@ Página principal (se sirve en la raíz de GitHub Pages). Convierte corridas de
 **VITEK® MS** y **VITEK MS PRIME** en:
 
 - una lista de picos por muestra (m/z, intensidad, y S/N + resolución estimadas desde el
-  perfil), con vista previa interactiva del espectro; exportable en CSV;
+  perfil), con vista previa interactiva del espectro; exportable en **CSV** (con encabezado
+  y las columnas de S/N y resolución) o en **TXT** (dos columnas, m/z e intensidad separadas
+  por tabulación y sin encabezado, que es lo que leen mMass, MALDIquant y similares), por
+  muestra o todas juntas en un `.zip`;
 - un único archivo `.xml` de **proyecto** (`<MspMatchResult>`, con un `<Analyte>` por
   muestra) con las intensidades normalizadas 0–1.
 

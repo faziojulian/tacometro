@@ -283,6 +283,7 @@
   .btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .dl-label { font-size: 0.78rem; color: var(--ink-3); font-weight: 600; }
 
   #samples { display: flex; flex-direction: column; gap: 16px; }
 
@@ -651,7 +652,8 @@
       <span class="spacer"></span>
       <div class="row">
         <button class="btn-secondary" id="btn-clear">Limpiar todo</button>
-        <button class="btn-secondary" id="btn-zip" disabled>⬇ CSVs (.zip)</button>
+        <button class="btn-secondary" id="btn-zip" title="Lista de picos por muestra en CSV: m/z, intensidad, S/N y resolución, con encabezado." disabled>⬇ CSVs (.zip)</button>
+        <button class="btn-secondary" id="btn-txt-zip" title="Lista de picos por muestra en texto plano: m/z e intensidad separados por tabulación, sin encabezado." disabled>⬇ TXTs (.zip)</button>
         <button class="btn-primary" id="btn-download-project-xml" disabled>⬇ Descargar XML del proyecto</button>
       </div>
     </div>
@@ -1215,6 +1217,25 @@ ${analytesXml}
     return lines.join('\n');
   }
 
+  // Lista de picos en texto plano: dos columnas (m/z e intensidad) separadas por
+  // tabulación y sin encabezado. Es la convención que leen las herramientas de
+  // MALDI (mMass, MALDIquant, flexAnalysis y scripts propios), por eso va sin
+  // las columnas extra que sí lleva el CSV.
+  function buildTxt(sample) {
+    const lines = [];
+    for (const p of sample.peaks) {
+      lines.push(`${p.mz.toFixed(4)}\t${p.intensity.toFixed(2)}`);
+    }
+    return lines.join('\n') + '\n';
+  }
+
+  // Formatos de lista de picos disponibles, para no repetir la lógica de
+  // descarga (por muestra y en lote) una vez por formato.
+  const PEAK_FORMATS = {
+    csv: { ext: 'csv', mime: 'text/csv', etiqueta: 'CSV', build: buildCsv },
+    txt: { ext: 'txt', mime: 'text/plain', etiqueta: 'TXT', build: buildTxt },
+  };
+
   function sanitizeFilename(s) {
     return (String(s || 'muestra').replace(/[^a-zA-Z0-9_.-]+/g, '_').slice(0, 80)) || 'muestra';
   }
@@ -1475,6 +1496,7 @@ ${analytesXml}
   const samplesEl = document.getElementById('samples');
   const emptyStateEl = document.getElementById('empty-state');
   const btnZip = document.getElementById('btn-zip');
+  const btnTxtZip = document.getElementById('btn-txt-zip');
   const btnDownloadProjectXml = document.getElementById('btn-download-project-xml');
   let projectUuid = null;
   let instrumentIdAutoFilled = false;
@@ -1497,6 +1519,7 @@ ${analytesXml}
   function updateEmptyState() {
     emptyStateEl.style.display = state.samples.length ? 'none' : 'block';
     btnZip.disabled = state.samples.length === 0;
+    btnTxtZip.disabled = state.samples.length === 0;
     btnDownloadProjectXml.disabled = state.samples.length === 0;
   }
 
@@ -1607,7 +1630,9 @@ ${analytesXml}
       </div>
 
       <div class="row">
-        <button class="btn-secondary btn-dl-csv">⬇ CSV de picos</button>
+        <span class="dl-label">Lista de picos:</span>
+        <button class="btn-secondary btn-dl-peaks" data-formato="csv" title="m/z, intensidad, S/N y resolución, con encabezado.">⬇ CSV</button>
+        <button class="btn-secondary btn-dl-peaks" data-formato="txt" title="m/z e intensidad separados por tabulación, sin encabezado.">⬇ TXT</button>
       </div>
     `;
 
@@ -1621,9 +1646,15 @@ ${analytesXml}
       sample.mspName = e.target.value;
       sample.mspNameOverridden = true;
     });
-    card.querySelector('.btn-dl-csv').addEventListener('click', () => {
-      triggerDownload(new Blob([buildCsv(sample)], { type: 'text/csv' }), sanitizeFilename(sample.sampleId) + '_picos.csv');
-    });
+    for (const btn of card.querySelectorAll('.btn-dl-peaks')) {
+      btn.addEventListener('click', () => {
+        const fmt = PEAK_FORMATS[btn.dataset.formato];
+        triggerDownload(
+          new Blob([fmt.build(sample)], { type: fmt.mime + ';charset=utf-8' }),
+          sanitizeFilename(sample.sampleId) + '_picos.' + fmt.ext
+        );
+      });
+    }
     card.querySelector('.card-remove').addEventListener('click', () => {
       const i = state.samples.indexOf(sample);
       if (i >= 0) state.samples.splice(i, 1);
@@ -1771,12 +1802,15 @@ ${analytesXml}
     updateEmptyState();
   });
 
-  // Descargar los CSV de picos de todas las muestras en un .zip
-  btnZip.addEventListener('click', () => {
+  // Descargar las listas de picos de todas las muestras en un .zip, en el
+  // formato elegido (CSV o TXT). Las muestras con adquisición fallida quedan
+  // afuera, igual que en el XML del proyecto.
+  function descargarZipDePicos(clave) {
+    const fmt = PEAK_FORMATS[clave];
     if (state.samples.length === 0) return;
     const { incluidas, excluidas } = splitExportables();
     if (incluidas.length === 0) {
-      showToast('No se generaron CSVs: todas las muestras tienen la adquisición fallida');
+      showToast(`No se generaron ${fmt.etiqueta}: todas las muestras tienen la adquisición fallida`);
       return;
     }
     const files = {};
@@ -1787,12 +1821,15 @@ ${analytesXml}
       let n = 2;
       while (used.has(candidate)) { candidate = base + '_' + n; n++; }
       used.add(candidate);
-      files[candidate + '_picos.csv'] = fflate.strToU8(buildCsv(sample));
+      files[candidate + '_picos.' + fmt.ext] = fflate.strToU8(fmt.build(sample));
     }
     const zipped = fflate.zipSync(files);
-    triggerDownload(new Blob([zipped], { type: 'application/zip' }), 'picos_muestras.zip');
-    showToast(`CSVs descargados · ${describeExport(incluidas, excluidas)}`);
-  });
+    triggerDownload(new Blob([zipped], { type: 'application/zip' }), 'picos_muestras_' + fmt.ext + '.zip');
+    showToast(`${fmt.etiqueta} descargados · ${describeExport(incluidas, excluidas)}`);
+  }
+
+  btnZip.addEventListener('click', () => descargarZipDePicos('csv'));
+  btnTxtZip.addEventListener('click', () => descargarZipDePicos('txt'));
 
   // Descargar el XML del proyecto completo (todas las muestras cargadas en un solo <MspMatchResult>)
   btnDownloadProjectXml.addEventListener('click', () => {
