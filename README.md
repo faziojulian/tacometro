@@ -45,8 +45,11 @@ campos de la cabecera salen del propio `.mzML`. Dos salvedades:
   en los dos archivos de referencia, así que no se pudo distinguir de qué campo sale; se
   toma del contador de adquisiciones.
 
-Ambas listas de referencia traen exactamente **160 picos**, por encima del tope de 150 que
-usa la página por defecto.
+**Picos ya marcados en el archivo:** si el espectro viene centroidal, los picos los eligió
+el equipo y se usan **todos, tal cual**. Los ajustes de detección (rango de m/z, separación
+mínima, tope de picos) se aplican sólo a espectros de perfil, donde sí hay que detectarlos.
+Antes se aplicaban a los dos, y eso recortaba listas que el equipo ya había seleccionado:
+con las 160 masas de los archivos de referencia, el tope de 150 descartaba 10.
 
 **Esquema del XML:** la estructura (`MspMatchResult` > `ProjectInfo` + `Analytes` >
 `Analyte` > `Peaklist` > `Peaks` > `Peak`) se tomó de archivos `.xml` reales, no es una

@@ -582,9 +582,11 @@
       </div>
     </div>
     <div class="hint" style="margin-top:10px;">
-      Se conservan los picos más representativos del espectro: máximos locales por encima de la relación
-      señal/ruido (S/N) mínima, hasta el tope indicado. El rango de m/z se autocompleta con el del propio
-      archivo. Con espectros centroidales (picos ya discretos), la S/N y la resolución no se recalculan.
+      <b>Estos ajustes solo se aplican a espectros de perfil</b>, donde hay que detectar los picos: se
+      conservan los máximos locales por encima de la relación señal/ruido (S/N) mínima, hasta el tope
+      indicado, y el rango de m/z se autocompleta con el del propio archivo. Si el archivo ya trae los
+      picos marcados, se usan <b>todos, tal cual vienen</b>: no se filtran ni se recortan, y la S/N y la
+      resolución no se pueden recalcular.
     </div>
   </div>
 
@@ -1067,25 +1069,30 @@ var define, module, exports;
     return peaks.slice(0, opts.maxPeaks).sort((a, b) => a.mz - b.mz);
   }
 
-  // Espectro centroidal: los picos ya vienen discretos, sin forma de pico, así
-  // que no se pueden recalcular S/N ni resolución desde el perfil (quedan null).
-  function peaksFromCentroid(mz, intensity, opts) {
-    let peaks = [];
+  // Espectro centroidal: los picos YA vienen marcados en el archivo, elegidos
+  // por el equipo. Se toman tal cual, todos.
+  //
+  // Antes se les aplicaban igual los tres ajustes de detección (rango de m/z,
+  // separación mínima y tope de picos), y eso descartaba picos que el equipo
+  // ya había seleccionado: con una lista de 160, el tope de 150 se comía 10.
+  // No hay nada que detectar acá, así que los ajustes no corresponden; lo
+  // único que se descarta son los puntos de intensidad nula, que no son picos.
+  //
+  // S/N y resolución quedan en null a propósito: sin la forma del pico no se
+  // pueden calcular, y no se van a inventar.
+  function peaksFromCentroid(mz, intensity) {
+    const peaks = [];
     for (let i = 0; i < mz.length; i++) {
-      if (mz[i] < opts.minMz || mz[i] > opts.maxMz) continue;
       if (intensity[i] <= 0) continue;
       peaks.push({ mz: mz[i], intensity: intensity[i], sn: null, fwhm: null, resolution: null });
     }
-    peaks = enforceMinSeparation(peaks, opts.minSeparation);
-    peaks.sort((a, b) => b.intensity - a.intensity);
-    const top = peaks.slice(0, opts.maxPeaks);
-    top.sort((a, b) => a.mz - b.mz);
-    return top;
+    peaks.sort((a, b) => a.mz - b.mz);
+    return peaks;
   }
 
   function computePeaks(sample, opts) {
     if (!sample.mz || !sample.intensity || sample.mz.length !== sample.intensity.length) return [];
-    if (sample.isCentroid && !sample.isProfile) return peaksFromCentroid(sample.mz, sample.intensity, opts);
+    if (sample.isCentroid && !sample.isProfile) return peaksFromCentroid(sample.mz, sample.intensity);
     return pickPeaksFromProfile(sample.mz, sample.intensity, opts);
   }
 
@@ -1611,7 +1618,9 @@ ${analytesXml}
     card.dataset.id = sample.localId;
 
     const warnBadges = sample.warnings.map(w => `<span class="badge warn">${escapeXml(w)}</span>`).join('');
-    const typeBadge = sample.isCentroid ? 'centroidal' : (sample.isProfile ? 'perfil' : 'tipo desconocido');
+    const typeBadge = sample.isCentroid
+      ? 'picos del archivo'
+      : (sample.isProfile ? 'perfil · picos detectados' : 'tipo desconocido');
     const quality = describeQuality(sample);
     // Toda la tarjeta se marca en rojo cuando la adquisición falló, para que se
     // note de un vistazo al revisar un lote grande.
