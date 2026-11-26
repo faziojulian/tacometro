@@ -20,8 +20,7 @@ Página principal (se sirve en la raíz de GitHub Pages). Convierte corridas de
 
 - una lista de picos por muestra (m/z, intensidad, y S/N + resolución estimadas desde el
   perfil), con vista previa interactiva del espectro; exportable en **CSV** (con encabezado
-  y las columnas de S/N y resolución) o en **TXT** (dos columnas, m/z e intensidad separadas
-  por tabulación y sin encabezado, que es lo que leen mMass, MALDIquant y similares), por
+  y las columnas de S/N y resolución) o en **TXT** en el formato nativo del equipo, por
   muestra o todas juntas en un `.zip`;
 - un único archivo `.xml` de **proyecto** (`<MspMatchResult>`, con un `<Analyte>` por
   muestra) con las intensidades normalizadas 0–1.
@@ -32,6 +31,22 @@ Página principal (se sirve en la raíz de GitHub Pages). Convierte corridas de
 
 Las muestras se rotulan según su origen (**IVD**, **RUO** o **AVG**): para identificar se
 recomiendan las IVD, y las demás quedan marcadas con una advertencia.
+
+**Formato del `.txt` de picos:** se reprodujo a partir de dos listas de picos reales
+exportadas por un VITEK MS, byte a byte: siete líneas de cabecera que empiezan con `#`,
+los picos como `m/z<espacio>intensidad` con **dos decimales en ambos** e intensidades en
+cuentas crudas (sin normalizar), una línea vacía al final y finales de línea **CRLF**. Los
+campos de la cabecera salen del propio `.mzML`. Dos salvedades:
+
+- el identificador de la línea `# Data:` es un UUID en los archivos del equipo; acá se
+  busca uno entre los identificadores que trae el `.mzML` y, si no hay, se usa el id del
+  espectro. No se genera uno nuevo: un UUID inventado se leería como el de la corrida;
+- el `1` que precede a la posición en la segunda línea de cabecera (`# 1L4#G=...`) vale 1
+  en los dos archivos de referencia, así que no se pudo distinguir de qué campo sale; se
+  toma del contador de adquisiciones.
+
+Ambas listas de referencia traen exactamente **160 picos**, por encima del tope de 150 que
+usa la página por defecto.
 
 **Esquema del XML:** la estructura (`MspMatchResult` > `ProjectInfo` + `Analytes` >
 `Analyte` > `Peaklist` > `Peaks` > `Peak`) se tomó de archivos `.xml` reales, no es una

@@ -653,7 +653,7 @@
       <div class="row">
         <button class="btn-secondary" id="btn-clear">Limpiar todo</button>
         <button class="btn-secondary" id="btn-zip" title="Lista de picos por muestra en CSV: m/z, intensidad, S/N y resolución, con encabezado." disabled>⬇ CSVs (.zip)</button>
-        <button class="btn-secondary" id="btn-txt-zip" title="Lista de picos por muestra en texto plano: m/z e intensidad separados por tabulación, sin encabezado." disabled>⬇ TXTs (.zip)</button>
+        <button class="btn-secondary" id="btn-txt-zip" title="Lista de picos por muestra en el formato nativo del equipo: encabezado con # y m/z + intensidad separados por un espacio." disabled>⬇ TXTs (.zip)</button>
         <button class="btn-primary" id="btn-download-project-xml" disabled>⬇ Descargar XML del proyecto</button>
       </div>
     </div>
@@ -1246,19 +1246,76 @@ ${analytesXml}
   // tabulación y sin encabezado. Es la convención que leen las herramientas de
   // MALDI (mMass, MALDIquant, flexAnalysis y scripts propios), por eso va sin
   // las columnas extra que sí lleva el CSV.
-  function buildTxt(sample) {
-    const lines = [];
-    for (const p of sample.peaks) {
-      lines.push(`${p.mz.toFixed(4)}\t${p.intensity.toFixed(2)}`);
+  // Fecha y hora LOCALES en el formato de la cabecera del equipo
+  // ("2026-11-16 11:00:50 ART"). El .mzML guarda la marca de tiempo en UTC;
+  // el equipo la escribe en la hora local del laboratorio, así que se
+  // convierte acá. El locale sueco da justo "AAAA-MM-DD HH:MM:SS", y es-AR da
+  // la sigla corta de la zona ("ART") en vez de un "GMT-3".
+  function formatLocalStamp(d) {
+    const fecha = new Intl.DateTimeFormat('sv-SE', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    }).format(d);
+    let zona = '';
+    try {
+      const parte = new Intl.DateTimeFormat('es-AR', { timeZoneName: 'short' })
+        .formatToParts(d).find(x => x.type === 'timeZoneName');
+      if (parte) zona = parte.value;
+    } catch (e) { /* zona horaria no disponible */ }
+    return zona ? `${fecha} ${zona}` : fecha;
+  }
+
+  // Identificador de la adquisición que el equipo pone en la línea "# Data:".
+  // En los .txt del equipo es un UUID; se busca uno en los identificadores que
+  // sí trae el .mzML en vez de generar uno nuevo, porque un UUID inventado
+  // acá se leería como si fuera el de la corrida. Si el archivo no trae
+  // ninguno, se usa el id del espectro tal cual.
+  const RE_UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+  function acquisitionId(sample) {
+    for (const campo of [sample.spectrumId, sample.sourceFileName, sample.sampleId]) {
+      const m = campo && String(campo).match(RE_UUID);
+      if (m) return m[0];
     }
-    return lines.join('\n') + '\n';
+    return sample.spectrumId || '';
+  }
+
+  // Lista de picos en el formato nativo del equipo, reproducido a partir de
+  // dos archivos .txt reales de VITEK MS. Es literal, incluidos los detalles
+  // que no se ven al mirarlo:
+  //   - 7 líneas de cabecera que empiezan con "#";
+  //   - los picos como "m/z<espacio>intensidad", DOS decimales en ambos;
+  //   - intensidades en cuentas crudas, no normalizadas;
+  //   - una línea vacía al final;
+  //   - todos los finales de línea CRLF, no LF.
+  // Los campos de la cabecera salen del propio .mzML; el único que no se pudo
+  // mapear contra un archivo real es el "1" que precede a la posición, que se
+  // toma del contador de adquisiciones.
+  function buildTxt(sample) {
+    const CRLF = '\r\n';
+    const spot = sample.targetPosition || '';
+    const prefijo = sample.acquisitionCount || '1';
+    const scope = sample.scopeMode || '';
+    const id = acquisitionId(sample);
+    const sello = formatLocalStamp(sample.acquisitionDateObj || new Date());
+
+    const lineas = [
+      '#',
+      `# ${prefijo}${spot}#G=#SP=#TYP=#ST=#GT=#TEM=#A=#M=#C=#Matrix=#Cos=#Sample=${sample.sampleId || ''}#PSD=#`,
+      `# Data: ${scope}_${spot}_MaLDi_${id} ${sello}`,
+      '#', '#', '#', '#',
+    ];
+    for (const p of sample.peaks) {
+      lineas.push(`${p.mz.toFixed(2)} ${p.intensity.toFixed(2)}`);
+    }
+    lineas.push('');            // línea vacía final, como la escribe el equipo
+    return lineas.join(CRLF) + CRLF;
   }
 
   // Formatos de lista de picos disponibles, para no repetir la lógica de
   // descarga (por muestra y en lote) una vez por formato.
   const PEAK_FORMATS = {
     csv: { ext: 'csv', mime: 'text/csv', etiqueta: 'CSV', build: buildCsv },
-    txt: { ext: 'txt', mime: 'text/plain', etiqueta: 'TXT', build: buildTxt },
+    txt: { ext: 'txt', mime: 'text/plain;charset=utf-8', etiqueta: 'TXT', build: buildTxt },
   };
 
   function sanitizeFilename(s) {
@@ -1657,7 +1714,7 @@ ${analytesXml}
       <div class="row">
         <span class="dl-label">Lista de picos:</span>
         <button class="btn-secondary btn-dl-peaks" data-formato="csv" title="m/z, intensidad, S/N y resolución, con encabezado.">⬇ CSV</button>
-        <button class="btn-secondary btn-dl-peaks" data-formato="txt" title="m/z e intensidad separados por tabulación, sin encabezado.">⬇ TXT</button>
+        <button class="btn-secondary btn-dl-peaks" data-formato="txt" title="Formato nativo del equipo: encabezado con # y m/z + intensidad separados por un espacio.">⬇ TXT</button>
       </div>
     `;
 
